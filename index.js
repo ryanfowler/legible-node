@@ -700,3 +700,4 @@ if (!nativeBinding) {
 }
 
 module.exports = nativeBinding
+module.exports.ContentTag = nativeBinding.ContentTag
