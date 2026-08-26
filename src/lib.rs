@@ -1,5 +1,7 @@
 #![deny(clippy::all)]
 
+mod numeric;
+
 #[cfg(test)]
 mod upstream_api_tests {
   fn assert_send<T: Send>() {}
