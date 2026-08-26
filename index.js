@@ -700,4 +700,12 @@ if (!nativeBinding) {
 }
 
 module.exports = nativeBinding
+module.exports.AcceptanceException = nativeBinding.AcceptanceException
+module.exports.AttemptRejectionReason = nativeBinding.AttemptRejectionReason
+module.exports.CandidateSource = nativeBinding.CandidateSource
+module.exports.CleanupActionKind = nativeBinding.CleanupActionKind
 module.exports.ContentTag = nativeBinding.ContentTag
+module.exports.ExtractionStrategy = nativeBinding.ExtractionStrategy
+module.exports.MetadataSource = nativeBinding.MetadataSource
+module.exports.RootSelectionReason = nativeBinding.RootSelectionReason
+module.exports.SemanticCoverageCategory = nativeBinding.SemanticCoverageCategory
