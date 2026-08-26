@@ -4,6 +4,12 @@
 
 > Fast readable-content extraction for Node.js, powered by the Legible Rust crate.
 
+## Upstream dependency
+
+The native binding is pinned to Legible Git revision
+[`300864884915828170cb94799fbc495ac75aca77`](https://github.com/ryanfowler/legible/tree/300864884915828170cb94799fbc495ac75aca77).
+The revision is recorded directly in `Cargo.toml` and `Cargo.lock` for reproducible builds.
+
 # Usage
 
 1. **Clone** the repository.
