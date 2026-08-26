@@ -6,6 +6,8 @@
 #[allow(dead_code)]
 mod error;
 #[allow(dead_code)]
+mod metadata;
+#[allow(dead_code)]
 mod numeric;
 #[allow(dead_code)]
 mod options;

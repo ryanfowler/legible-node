@@ -52,6 +52,52 @@ export interface ExtractorOptions {
   contentRoot?: ContentSelector
 }
 
+/**
+ * Metadata returned by a successful extraction.
+ *
+ * Scalar fields are represented as nullable properties in the generated
+ * TypeScript declarations. List fields preserve the order supplied by
+ * Legible and are always present.
+ */
+export interface Metadata {
+  title: string | null
+  description: string | null
+  authors: Array<string>
+  siteName: string | null
+  canonicalUrl: string | null
+  image: string | null
+  favicon: string | null
+  publishedTime: string | null
+  modifiedTime: string | null
+  language: string | null
+  direction: string | null
+  section: string | null
+  tags: Array<string>
+}
+
+/** Scalar measurements for the retained semantic page content. */
+export interface PageMetrics {
+  wordCount: number
+  textLength: number
+  linkTextLength: number
+  linkDensity: number
+  paragraphCount: number
+  headingCount: number
+  listItemCount: number
+  codeBlockCount: number
+  tableCount: number
+  figureCount: number
+  imageCount: number
+  footnoteReferenceCount: number
+  footnoteDefinitionCount: number
+  mathCount: number
+  structuredBlockCount: number
+  hasAlphanumericText: boolean
+  alphabeticChars: number
+  digitChars: number
+  hasContextualStructure: boolean
+}
+
 /** Parser and structured-data resource limits. */
 export interface ParseBudget {
   maxInputBytes?: number
