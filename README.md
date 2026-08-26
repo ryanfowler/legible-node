@@ -6,8 +6,10 @@
 
 ## Upstream dependency
 
-The native binding is pinned to Legible Git revision
-[`300864884915828170cb94799fbc495ac75aca77`](https://github.com/ryanfowler/legible/tree/300864884915828170cb94799fbc495ac75aca77).
+The native binding is pinned to the reviewed Legible Git revision
+[`899356a2540863898b2c9fe639241da606889256`](https://github.com/ryanfowler/legible/tree/899356a2540863898b2c9fe639241da606889256).
+This is a later revision than the design snapshot and includes the upstream
+fix that makes retained extracted pages sendable for the planned async API.
 The revision is recorded directly in `Cargo.toml` and `Cargo.lock` for reproducible builds.
 
 # Usage
