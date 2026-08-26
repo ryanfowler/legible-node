@@ -4,6 +4,8 @@
 // tasks; keep them available and testable while the intermediate scaffold has
 // no exported extractor methods yet.
 #[allow(dead_code)]
+mod error;
+#[allow(dead_code)]
 mod numeric;
 #[allow(dead_code)]
 mod options;
