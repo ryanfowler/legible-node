@@ -700,6 +700,7 @@ if (!nativeBinding) {
 }
 
 module.exports = nativeBinding
+module.exports.ExtractedPage = nativeBinding.ExtractedPage
 module.exports.AcceptanceException = nativeBinding.AcceptanceException
 module.exports.AttemptRejectionReason = nativeBinding.AttemptRejectionReason
 module.exports.CandidateSource = nativeBinding.CandidateSource

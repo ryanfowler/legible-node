@@ -29,6 +29,32 @@ export interface LegibleError extends Error {
   readonly limit?: number
   readonly observed?: number
 }
+/**
+ * A retained extracted page with lazy output rendering.
+ *
+ * The upstream page owns the semantic representation. This wrapper does not
+ * cache rendered strings or converted result objects.
+ */
+export declare class ExtractedPage {
+  /** Returns a fresh JavaScript-owned metadata value. */
+  get metadata(): Metadata
+  /** Returns all public content measurements in one conversion. */
+  get metrics(): PageMetrics
+  /** Returns extraction diagnostics when they were retained. */
+  get diagnostics(): ExtractionDiagnostics | null
+  /** Returns metadata diagnostics when they were retained. */
+  get metadataDiagnostics(): MetadataDiagnostics | null
+  /** Returns retained structured data, or null when retention was disabled. */
+  get structuredData(): unknown[] | null
+  /** Renders canonical Markdown using the upstream MarkdownBuilder. */
+  markdown(options?: MarkdownOptions | undefined | null): string
+  /** Renders normalized plain text lazily. */
+  text(): string
+  /** Renders canonical semantic HTML lazily. */
+  html(): string
+  private constructor()
+}
+
 /** A positive exception that allowed an attempt to be accepted. */
 export type AcceptanceException =  'trustedSemanticRoot';
 
@@ -135,6 +161,16 @@ export interface ExtractorOptions {
   retainStructuredData?: boolean
   contentHint?: ContentSelector
   contentRoot?: ContentSelector
+}
+
+/** Options for rendering an extracted page as Markdown. */
+export interface MarkdownOptions {
+  /** Whether to render links as Markdown links. Defaults to true. */
+  links?: boolean
+  /** Whether to render images. Defaults to true. */
+  images?: boolean
+  /** Preferred maximum prose source-line width. Zero disables wrapping. */
+  maxLineWidth?: number
 }
 
 /**

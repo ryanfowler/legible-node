@@ -10,10 +10,11 @@ crate-type = ["cdylib"]
 [dependencies]
 legible_upstream = { package = "legible", git = "https://github.com/ryanfowler/legible", rev = "899356a2540863898b2c9fe639241da606889256" }
 napi-derive = "3.0.0"
+serde_json = "1.0"
 
 [dependencies.napi]
 version = "3.0.0"
-features = ["napi8"]
+features = ["napi8", "serde-json"]
 
 [build-dependencies]
 napi-build = "2"
