@@ -57,7 +57,9 @@
     "format:rs": "cargo fmt",
     "lint": "oxlint",
     "prepublishOnly": "napi prepublish -t npm",
-    "test": "ava",
+    "test": "run-s test:types test:unit",
+    "test:types": "tsc --noEmit -p __test__/options-tsconfig.json",
+    "test:unit": "ava",
     "version": "napi version"
   },
   "devDependencies": {
