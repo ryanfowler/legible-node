@@ -1,7 +1,12 @@
 use napi::Result;
 use napi_derive::napi;
 
-use crate::numeric::js_number_from_usize;
+use crate::{
+  error::{BindingCompatibilityError, BindingConversionError},
+  numeric::js_number_from_usize,
+};
+
+type ConversionResult<T> = std::result::Result<T, BindingConversionError>;
 
 /// Metadata returned by a successful extraction.
 ///
@@ -23,6 +28,156 @@ pub struct Metadata {
   pub direction: Option<String>,
   pub section: Option<String>,
   pub tags: Vec<String>,
+}
+
+/// The source of a discovered metadata value.
+#[napi(string_enum = "camelCase")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MetadataSource {
+  JsonLd,
+  OpenGraph,
+  Twitter,
+  DublinCore,
+  Citation,
+  HtmlMeta,
+  HtmlElement,
+  LinkElement,
+  Inferred,
+}
+
+impl TryFrom<legible_upstream::MetadataSource> for MetadataSource {
+  type Error = BindingCompatibilityError;
+
+  fn try_from(value: legible_upstream::MetadataSource) -> std::result::Result<Self, Self::Error> {
+    match value {
+      legible_upstream::MetadataSource::JsonLd => Ok(Self::JsonLd),
+      legible_upstream::MetadataSource::OpenGraph => Ok(Self::OpenGraph),
+      legible_upstream::MetadataSource::Twitter => Ok(Self::Twitter),
+      legible_upstream::MetadataSource::DublinCore => Ok(Self::DublinCore),
+      legible_upstream::MetadataSource::Citation => Ok(Self::Citation),
+      legible_upstream::MetadataSource::HtmlMeta => Ok(Self::HtmlMeta),
+      legible_upstream::MetadataSource::HtmlElement => Ok(Self::HtmlElement),
+      legible_upstream::MetadataSource::LinkElement => Ok(Self::LinkElement),
+      legible_upstream::MetadataSource::Inferred => Ok(Self::Inferred),
+      _ => Err(BindingCompatibilityError::new(
+        "unsupported Legible metadata source variant",
+      )),
+    }
+  }
+}
+
+/// A metadata value together with provenance and confidence.
+#[napi(object, object_from_js = false)]
+#[derive(Debug, Clone)]
+pub struct MetadataValue {
+  pub value: String,
+  pub source: MetadataSource,
+  pub confidence: f64,
+}
+
+impl MetadataValue {
+  fn from_upstream(value: &legible_upstream::MetadataValue<String>) -> ConversionResult<Self> {
+    Ok(Self {
+      value: value.value.clone(),
+      source: value.source.try_into()?,
+      confidence: f64::from(value.confidence),
+    })
+  }
+}
+
+/// Selection details for a metadata field with one value.
+#[napi(object, object_from_js = false, use_nullable = true)]
+#[derive(Debug, Clone)]
+pub struct MetadataFieldDiagnostics {
+  pub selected: Option<MetadataValue>,
+  pub alternatives: Vec<MetadataValue>,
+}
+
+impl MetadataFieldDiagnostics {
+  fn from_upstream(
+    value: &legible_upstream::MetadataFieldDiagnostics<String>,
+  ) -> ConversionResult<Self> {
+    Ok(Self {
+      selected: value
+        .selected
+        .as_ref()
+        .map(MetadataValue::from_upstream)
+        .transpose()?,
+      alternatives: value
+        .alternatives
+        .iter()
+        .map(MetadataValue::from_upstream)
+        .collect::<ConversionResult<Vec<_>>>()?,
+    })
+  }
+}
+
+/// Selection details for a metadata field with many values.
+#[napi(object, object_from_js = false)]
+#[derive(Debug, Clone)]
+pub struct MetadataListFieldDiagnostics {
+  pub selected: Vec<MetadataValue>,
+  pub alternatives: Vec<MetadataValue>,
+}
+
+impl MetadataListFieldDiagnostics {
+  fn from_upstream(
+    value: &legible_upstream::MetadataListFieldDiagnostics<String>,
+  ) -> ConversionResult<Self> {
+    Ok(Self {
+      selected: value
+        .selected
+        .iter()
+        .map(MetadataValue::from_upstream)
+        .collect::<ConversionResult<Vec<_>>>()?,
+      alternatives: value
+        .alternatives
+        .iter()
+        .map(MetadataValue::from_upstream)
+        .collect::<ConversionResult<Vec<_>>>()?,
+    })
+  }
+}
+
+/// Provenance and selection details for all public metadata fields.
+#[napi(object, object_from_js = false)]
+#[derive(Debug, Clone)]
+pub struct MetadataDiagnostics {
+  pub title: MetadataFieldDiagnostics,
+  pub description: MetadataFieldDiagnostics,
+  pub authors: MetadataListFieldDiagnostics,
+  pub site_name: MetadataFieldDiagnostics,
+  pub canonical_url: MetadataFieldDiagnostics,
+  pub image: MetadataFieldDiagnostics,
+  pub favicon: MetadataFieldDiagnostics,
+  pub published_time: MetadataFieldDiagnostics,
+  pub modified_time: MetadataFieldDiagnostics,
+  pub language: MetadataFieldDiagnostics,
+  pub direction: MetadataFieldDiagnostics,
+  pub section: MetadataFieldDiagnostics,
+  pub tags: MetadataListFieldDiagnostics,
+}
+
+impl MetadataDiagnostics {
+  pub(crate) fn from_upstream(
+    value: &legible_upstream::MetadataDiagnostics,
+  ) -> ConversionResult<Self> {
+    Ok(Self {
+      title: MetadataFieldDiagnostics::from_upstream(&value.title)?,
+      description: MetadataFieldDiagnostics::from_upstream(&value.description)?,
+      authors: MetadataListFieldDiagnostics::from_upstream(&value.authors)?,
+      site_name: MetadataFieldDiagnostics::from_upstream(&value.site_name)?,
+      canonical_url: MetadataFieldDiagnostics::from_upstream(&value.canonical_url)?,
+      image: MetadataFieldDiagnostics::from_upstream(&value.image)?,
+      favicon: MetadataFieldDiagnostics::from_upstream(&value.favicon)?,
+      published_time: MetadataFieldDiagnostics::from_upstream(&value.published_time)?,
+      modified_time: MetadataFieldDiagnostics::from_upstream(&value.modified_time)?,
+      language: MetadataFieldDiagnostics::from_upstream(&value.language)?,
+      direction: MetadataFieldDiagnostics::from_upstream(&value.direction)?,
+      section: MetadataFieldDiagnostics::from_upstream(&value.section)?,
+      tags: MetadataListFieldDiagnostics::from_upstream(&value.tags)?,
+    })
+  }
 }
 
 impl Metadata {
@@ -108,7 +263,7 @@ impl PageMetrics {
 
 #[cfg(test)]
 mod tests {
-  use super::{Metadata, PageMetrics};
+  use super::*;
 
   #[test]
   fn metadata_keeps_nullables_and_source_order() {
@@ -176,6 +331,86 @@ mod tests {
     assert_eq!(metadata.direction, None);
     assert_eq!(metadata.section, None);
     assert!(metadata.tags.is_empty());
+  }
+
+  #[test]
+  fn converts_metadata_diagnostics_and_preserves_provenance() {
+    let candidate = legible_upstream::MetadataValue {
+      value: "A title".to_owned(),
+      source: legible_upstream::MetadataSource::OpenGraph,
+      confidence: 90,
+    };
+    let mut upstream = legible_upstream::MetadataDiagnostics::default();
+    upstream.title.selected = Some(candidate.clone());
+    upstream
+      .title
+      .alternatives
+      .push(legible_upstream::MetadataValue {
+        value: "A fallback title".to_owned(),
+        source: legible_upstream::MetadataSource::HtmlMeta,
+        confidence: 76,
+      });
+    upstream.authors.selected.push(candidate.clone());
+    upstream.tags.alternatives.push(candidate);
+
+    let diagnostics = MetadataDiagnostics::from_upstream(&upstream).unwrap();
+    let title = diagnostics.title.selected.as_ref().unwrap();
+    assert_eq!(title.value, "A title");
+    assert_eq!(title.source, MetadataSource::OpenGraph);
+    assert_eq!(title.confidence, 90.0);
+    assert_eq!(
+      diagnostics.title.alternatives[0].source,
+      MetadataSource::HtmlMeta
+    );
+    assert_eq!(diagnostics.authors.selected.len(), 1);
+    assert_eq!(diagnostics.tags.alternatives.len(), 1);
+    assert!(diagnostics.description.selected.is_none());
+  }
+
+  #[test]
+  fn converts_every_metadata_source_variant() {
+    let sources = [
+      (
+        legible_upstream::MetadataSource::JsonLd,
+        MetadataSource::JsonLd,
+      ),
+      (
+        legible_upstream::MetadataSource::OpenGraph,
+        MetadataSource::OpenGraph,
+      ),
+      (
+        legible_upstream::MetadataSource::Twitter,
+        MetadataSource::Twitter,
+      ),
+      (
+        legible_upstream::MetadataSource::DublinCore,
+        MetadataSource::DublinCore,
+      ),
+      (
+        legible_upstream::MetadataSource::Citation,
+        MetadataSource::Citation,
+      ),
+      (
+        legible_upstream::MetadataSource::HtmlMeta,
+        MetadataSource::HtmlMeta,
+      ),
+      (
+        legible_upstream::MetadataSource::HtmlElement,
+        MetadataSource::HtmlElement,
+      ),
+      (
+        legible_upstream::MetadataSource::LinkElement,
+        MetadataSource::LinkElement,
+      ),
+      (
+        legible_upstream::MetadataSource::Inferred,
+        MetadataSource::Inferred,
+      ),
+    ];
+
+    for (upstream, expected) in sources {
+      assert_eq!(MetadataSource::try_from(upstream).unwrap(), expected);
+    }
   }
 
   #[test]

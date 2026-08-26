@@ -24,6 +24,38 @@ pub(crate) struct BindingError {
   pub(crate) observed: Option<usize>,
 }
 
+/// Errors that can occur while converting native values to binding DTOs.
+///
+/// Compatibility failures need an environment to become a JavaScript error
+/// with the stable Legible error properties. N-API errors can be returned as
+/// they are because they already contain their status and message.
+#[derive(Debug)]
+pub(crate) enum BindingConversionError {
+  Napi(NapiError),
+  Compatibility(BindingCompatibilityError),
+}
+
+impl BindingConversionError {
+  pub(crate) fn into_napi_error(self, env: &Env) -> Result<NapiError> {
+    match self {
+      Self::Napi(error) => Ok(error),
+      Self::Compatibility(error) => BindingError::from(error).into_napi_error(env),
+    }
+  }
+}
+
+impl From<NapiError> for BindingConversionError {
+  fn from(error: NapiError) -> Self {
+    Self::Napi(error)
+  }
+}
+
+impl From<BindingCompatibilityError> for BindingConversionError {
+  fn from(error: BindingCompatibilityError) -> Self {
+    Self::Compatibility(error)
+  }
+}
+
 impl BindingError {
   fn new(code: &'static str, message: String) -> Self {
     Self {
@@ -133,7 +165,7 @@ fn checked_resource_name(
 
 /// Error used by fallible conversions from upstream non-exhaustive enums.
 #[derive(Debug, Eq, PartialEq)]
-pub(crate) struct BindingCompatibilityError {
+pub struct BindingCompatibilityError {
   message: String,
 }
 

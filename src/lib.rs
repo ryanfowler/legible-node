@@ -1,8 +1,7 @@
 #![deny(clippy::all)]
 
-// These conversion helpers are consumed by the public API in later binding
-// tasks; keep them available and testable while the intermediate scaffold has
-// no exported extractor methods yet.
+#[allow(dead_code)]
+mod diagnostics;
 #[allow(dead_code)]
 mod error;
 #[allow(dead_code)]

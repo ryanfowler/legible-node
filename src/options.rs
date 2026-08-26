@@ -5,7 +5,7 @@ use crate::numeric::js_safe_usize;
 
 /// A content tag accepted by Legible's content selectors.
 #[napi(string_enum = "lowercase", js_name = "ContentTag")]
-pub enum ContentTagInput {
+pub enum ContentTag {
   Article,
   Main,
   Section,
@@ -22,7 +22,7 @@ pub enum ContentTagInput {
 pub enum ContentSelectorInput {
   Id { value: String },
   Class { value: String },
-  Tag { value: ContentTagInput },
+  Tag { value: ContentTag },
 }
 
 impl ContentSelectorInput {
@@ -50,7 +50,7 @@ impl ContentSelectorInput {
   }
 }
 
-impl ContentTagInput {
+impl ContentTag {
   fn into_content_tag(self) -> legible_upstream::ContentTag {
     match self {
       Self::Article => legible_upstream::ContentTag::Article,
@@ -158,7 +158,7 @@ mod tests {
   fn converts_all_content_tag_variants() {
     assert_eq!(
       ContentSelectorInput::Tag {
-        value: ContentTagInput::Article,
+        value: ContentTag::Article,
       }
       .into_content_hint()
       .unwrap(),
@@ -166,7 +166,7 @@ mod tests {
     );
     assert_eq!(
       ContentSelectorInput::Tag {
-        value: ContentTagInput::Main,
+        value: ContentTag::Main,
       }
       .into_content_hint()
       .unwrap(),
@@ -174,7 +174,7 @@ mod tests {
     );
     assert_eq!(
       ContentSelectorInput::Tag {
-        value: ContentTagInput::Section,
+        value: ContentTag::Section,
       }
       .into_content_hint()
       .unwrap(),
@@ -182,7 +182,7 @@ mod tests {
     );
     assert_eq!(
       ContentSelectorInput::Tag {
-        value: ContentTagInput::Div,
+        value: ContentTag::Div,
       }
       .into_content_hint()
       .unwrap(),
@@ -350,7 +350,7 @@ mod tests {
       metadata_diagnostics: Some(false),
       retain_structured_data: Some(true),
       content_hint: Some(ContentSelectorInput::Tag {
-        value: ContentTagInput::Section,
+        value: ContentTag::Section,
       }),
       content_root: Some(ContentSelectorInput::Id {
         value: "article".to_owned(),

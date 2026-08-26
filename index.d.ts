@@ -29,6 +29,59 @@ export interface LegibleError extends Error {
   readonly limit?: number
   readonly observed?: number
 }
+/** A positive exception that allowed an attempt to be accepted. */
+export type AcceptanceException =  'trustedSemanticRoot';
+
+/** Why an extraction attempt was rejected. */
+export type AttemptRejectionReason =  'documentChrome'|
+'accessBarrier'|
+'sourceAccessBarrier'|
+'interactiveShell'|
+'linkOnlySemanticRoot'|
+'incoherentShortResult'|
+'lowQuality'|
+'potentialHiddenContent'|
+'insufficientImprovement'|
+'superseded';
+
+/** Evidence source for a selected extraction root. */
+export type CandidateSource =  'semantic'|
+'readability'|
+'structuredData'|
+'generic'|
+'callerHint';
+
+/** A cleanup stage and the number of elements it removed. */
+export interface CleanupAction {
+  kind: CleanupActionKind
+  removedElements: number
+}
+
+/** A major cleanup stage. */
+export type CleanupActionKind =  'decorativeMedia'|
+'hardCleanup'|
+'heuristicCleanup'|
+'finalCleanup';
+
+/** Measurements for a source or result region. */
+export interface ContentMetrics {
+  wordCount: number
+  textChars: number
+  linkTextChars: number
+  paragraphCount: number
+  headingCount: number
+  listItemCount: number
+  codeBlockCount: number
+  tableCount: number
+  figureCount: number
+  imageCount: number
+  footnoteReferenceCount: number
+  footnoteDefinitionCount: number
+  mathCount: number
+  structuredBlockCount: number
+  linkDensity: number
+}
+
 /** A typed selector for content hints and exact content roots. */
 export type ContentSelector =
   | { type: 'id', value: string }
@@ -40,6 +93,38 @@ export type ContentTag =  'article'|
 'main'|
 'section'|
 'div';
+
+/** One attempt made by Legible while selecting and cleaning content. */
+export interface ExtractionAttempt {
+  strategy: ExtractionStrategy
+  selectedRoot: RootInfo
+  source: ContentMetrics
+  result: ContentMetrics
+  quality: QualityInfo
+  semanticCoverage: SemanticCoverage | null
+  cleanupActions: Array<CleanupAction>
+  normalization: NormalizationCounts
+  representation: RepresentationMetrics
+  accepted: boolean
+  acceptanceException: AcceptanceException | null
+  rejectionReason: AttemptRejectionReason | null
+}
+
+/** Structured information about the extraction decision. */
+export interface ExtractionDiagnostics {
+  selectedStrategy: ExtractionStrategy
+  specializedExtractor: string | null
+  attempts: Array<ExtractionAttempt>
+}
+
+/** The extraction strategy selected by Legible. */
+export type ExtractionStrategy =  'normal'|
+'relaxedCleanup'|
+'broadContent'|
+'structuredDataHint'|
+'relaxedVisibility'|
+'bodyFallback'|
+'metadataFallback';
 
 /** Reusable extractor configuration. */
 export interface ExtractorOptions {
@@ -73,6 +158,64 @@ export interface Metadata {
   direction: string | null
   section: string | null
   tags: Array<string>
+}
+
+/** Provenance and selection details for all public metadata fields. */
+export interface MetadataDiagnostics {
+  title: MetadataFieldDiagnostics
+  description: MetadataFieldDiagnostics
+  authors: MetadataListFieldDiagnostics
+  siteName: MetadataFieldDiagnostics
+  canonicalUrl: MetadataFieldDiagnostics
+  image: MetadataFieldDiagnostics
+  favicon: MetadataFieldDiagnostics
+  publishedTime: MetadataFieldDiagnostics
+  modifiedTime: MetadataFieldDiagnostics
+  language: MetadataFieldDiagnostics
+  direction: MetadataFieldDiagnostics
+  section: MetadataFieldDiagnostics
+  tags: MetadataListFieldDiagnostics
+}
+
+/** Selection details for a metadata field with one value. */
+export interface MetadataFieldDiagnostics {
+  selected: MetadataValue | null
+  alternatives: Array<MetadataValue>
+}
+
+/** Selection details for a metadata field with many values. */
+export interface MetadataListFieldDiagnostics {
+  selected: Array<MetadataValue>
+  alternatives: Array<MetadataValue>
+}
+
+/** The source of a discovered metadata value. */
+export type MetadataSource =  'jsonLd'|
+'openGraph'|
+'twitter'|
+'dublinCore'|
+'citation'|
+'htmlMeta'|
+'htmlElement'|
+'linkElement'|
+'inferred';
+
+/** A metadata value together with provenance and confidence. */
+export interface MetadataValue {
+  value: string
+  source: MetadataSource
+  confidence: number
+}
+
+/** Counts of structures produced by semantic normalization. */
+export interface NormalizationCounts {
+  codeBlocks: number
+  footnoteReferences: number
+  footnoteDefinitions: number
+  mathExpressions: number
+  images: number
+  tables: number
+  flattenedLayoutTables: number
 }
 
 /** Scalar measurements for the retained semantic page content. */
@@ -111,3 +254,61 @@ export interface ParseBudget {
   maxJsonLdItems?: number
   maxJsonLdDepth?: number
 }
+
+/** Quality measurements for one extraction attempt. */
+export interface QualityInfo {
+  coverage: number
+  bestAttemptScore: number
+  good: boolean
+  suspiciouslySmall: boolean
+}
+
+/** Size measurements for the retained representation. */
+export interface RepresentationMetrics {
+  sourceDomNodes: number
+  finalDomNodes: number
+  documentNodes: number
+  estimatedDocumentBytes: number
+}
+
+/** A stable description of the selected extraction root. */
+export interface RootInfo {
+  tag: string | null
+  id: string | null
+  classes: Array<string>
+  selectionReason: RootSelectionReason
+  candidateSources: Array<CandidateSource>
+}
+
+/** Why Legible selected an extraction root. */
+export type RootSelectionReason =  'ranked'|
+'specificChild'|
+'sharedParent'|
+'completeAncestor'|
+'structuredData'|
+'articleBody'|
+'bodyFallback'|
+'metadataFallback';
+
+/** Coverage for one semantic structure category. */
+export interface SemanticCategoryCoverage {
+  category: SemanticCoverageCategory
+  sourceCount: number
+  resultCount: number
+  coverage: number
+}
+
+/** Source-to-result coverage across eligible semantic structures. */
+export interface SemanticCoverage {
+  score: number
+  categories: Array<SemanticCategoryCoverage>
+}
+
+/** A category used for source-to-result semantic coverage. */
+export type SemanticCoverageCategory =  'codeBlocks'|
+'dataTables'|
+'substantialListItems'|
+'visuals'|
+'headings'|
+'footnoteDefinitions'|
+'mathExpressions';
