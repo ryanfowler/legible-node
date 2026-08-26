@@ -10,6 +10,9 @@ mod metadata;
 mod numeric;
 #[allow(dead_code)]
 mod options;
+mod page;
+
+pub use page::ExtractedPage;
 
 #[cfg(test)]
 mod upstream_api_tests {
