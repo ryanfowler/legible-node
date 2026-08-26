@@ -8,7 +8,7 @@ version = "0.1.0"
 crate-type = ["cdylib"]
 
 [dependencies]
-legible_upstream = { package = "legible", git = "https://github.com/ryanfowler/legible", rev = "300864884915828170cb94799fbc495ac75aca77" }
+legible_upstream = { package = "legible", git = "https://github.com/ryanfowler/legible", rev = "899356a2540863898b2c9fe639241da606889256" }
 napi-derive = "3.0.0"
 
 [dependencies.napi]
