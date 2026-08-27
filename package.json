@@ -53,6 +53,8 @@
     "verify:package": "node scripts/verify-package.mjs",
     "verify:registry": "node scripts/verify-registry.mjs",
     "verify:release": "node scripts/verify-release.mjs",
+    "upstream:revision": "node scripts/upstream-revision.mjs",
+    "upstream:check": "node scripts/upstream-revision.mjs --check",
     "bench": "node --import @oxc-node/core/register benchmark/bench.ts",
     "bench:memory": "node --expose-gc --import @oxc-node/core/register benchmark/memory.ts",
     "bench:rust": "cargo run --release --bin direct-rust-bench -- benchmark/fixtures",

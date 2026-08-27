@@ -1,0 +1,282 @@
+name: Propose upstream Legible update
+
+'on':
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: Optional exact 40-character upstream commit SHA (defaults to main)
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate proposed upstream revision
+    runs-on: ubuntu-latest
+    outputs:
+      current: ${{ steps.revision.outputs.current }}
+      next: ${{ steps.revision.outputs.next }}
+      base: ${{ steps.revision.outputs.base }}
+      branch: ${{ steps.revision.outputs.branch }}
+    steps:
+      - name: Check out the primary branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 22
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
+        with:
+          toolchain: 1.88.0
+
+      - name: Resolve upstream revision
+        id: revision
+        env:
+          REQUESTED_SHA: ${{ inputs.sha }}
+          UPSTREAM_REPOSITORY: https://github.com/ryanfowler/legible.git
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -n "$REQUESTED_SHA" ]]; then
+            revision="$REQUESTED_SHA"
+          else
+            revision=$(git ls-remote "$UPSTREAM_REPOSITORY" refs/heads/main | awk '{print $1}')
+          fi
+          if [[ ! "$revision" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "Expected a lowercase 40-character upstream commit SHA, got: $revision" >&2
+            exit 1
+          fi
+          current=$(pnpm upstream:revision)
+          if [[ "$current" == "$revision" ]]; then
+            echo "The repository already pins $revision" >&2
+            exit 1
+          fi
+          echo "current=$current" >> "$GITHUB_OUTPUT"
+          echo "next=$revision" >> "$GITHUB_OUTPUT"
+          echo "base=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "branch=upstream-update-${revision:0:12}" >> "$GITHUB_OUTPUT"
+
+      - name: Create an isolated validation branch
+        env:
+          BRANCH: ${{ steps.revision.outputs.branch }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git ls-remote --exit-code origin "refs/heads/$BRANCH" >/dev/null 2>&1; then
+            echo "Branch $BRANCH already exists; inspect its pull request instead of replacing it." >&2
+            exit 1
+          fi
+          git switch -c "$BRANCH"
+
+      - name: Update the working tree
+        env:
+          NEXT_SHA: ${{ steps.revision.outputs.next }}
+        run: node scripts/update-upstream-revision.mjs --sha "$NEXT_SHA"
+
+      - name: Refresh the locked upstream source
+        run: cargo update -p "$(node scripts/upstream-revision.mjs --package-spec)"
+
+      - name: Install JavaScript dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run the complete upstream proposal checks
+        run: |
+          set -euo pipefail
+          cargo fmt -- --check
+          cargo test --locked
+          pnpm lint
+          pnpm build
+          pnpm test
+          # package.spec.ts packs and installs the host package tarball.
+          pnpm exec ava __test__/package.spec.ts
+          pnpm upstream:check
+          git diff --check
+
+      - name: Validate the untrusted validation checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          changed=$( {
+            git diff --name-only
+            git diff --cached --name-only
+            git ls-files --others --exclude-standard
+          } | sort -u | grep -Ev '^(Cargo.toml|Cargo.lock|README.md|index.js|index.d.ts)$' || true )
+          if [[ -n "$changed" ]]; then
+            echo "Unexpected files changed by the proposal validation:" >&2
+            echo "$changed" >&2
+            exit 1
+          fi
+          for file in Cargo.toml Cargo.lock README.md index.js index.d.ts; do
+            if [[ -L "$file" ]]; then
+              echo "Proposal file must not be a symbolic link: $file" >&2
+              exit 1
+            fi
+          done
+
+      - name: Upload validated proposal files
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: upstream-proposal-files-${{ steps.revision.outputs.next }}
+          path: |
+            Cargo.lock
+            index.js
+            index.d.ts
+          if-no-files-found: error
+
+  propose:
+    name: Open upstream update pull request
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Check out the primary branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 22
+
+      - name: Download validated proposal files
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: upstream-proposal-files-${{ needs.validate.outputs.next }}
+          path: ${{ runner.temp }}/upstream-proposal-files
+
+      - name: Create a clean proposal checkout
+        env:
+          BRANCH: ${{ needs.validate.outputs.branch }}
+          NEXT_SHA: ${{ needs.validate.outputs.next }}
+          BASE_SHA: ${{ needs.validate.outputs.base }}
+          HOME: ${{ runner.temp }}/upstream-update-home
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME"
+          proposal="$RUNNER_TEMP/legible-node-proposal"
+          rm -rf "$proposal"
+          git clone --no-local "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git" "$proposal"
+          cd "$proposal"
+          git checkout "$BASE_SHA"
+          git switch -c "$BRANCH"
+          node scripts/update-upstream-revision.mjs --sha "$NEXT_SHA"
+          for file in Cargo.lock index.js index.d.ts; do
+            cp "$RUNNER_TEMP/upstream-proposal-files/$file" "$file"
+          done
+          git diff --check
+          changed=$( {
+            git diff --name-only
+            git diff --cached --name-only
+          } | sort -u | grep -Ev '^(Cargo.toml|Cargo.lock|README.md|index.js|index.d.ts)$' || true )
+          if [[ -n "$changed" ]]; then
+            echo "Unexpected files changed in the clean proposal:" >&2
+            echo "$changed" >&2
+            exit 1
+          fi
+          git add Cargo.toml Cargo.lock README.md index.js index.d.ts
+          git diff --cached --check
+
+      - name: Commit the proposal
+        env:
+          NEXT_SHA: ${{ needs.validate.outputs.next }}
+          HOME: ${{ runner.temp }}/upstream-update-home
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME"
+          cd "$RUNNER_TEMP/legible-node-proposal"
+          git config --local core.hooksPath /dev/null
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore: update legible upstream to ${NEXT_SHA:0:12}"
+          git show --stat --oneline HEAD
+
+      - name: Push the proposal branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ needs.validate.outputs.branch }}
+          HOME: ${{ runner.temp }}/upstream-update-home
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME"
+          cd "$RUNNER_TEMP/legible-node-proposal"
+          git config --local core.hooksPath /dev/null
+          git remote set-url origin "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git"
+          gh auth setup-git
+          git -c core.hooksPath=/dev/null push --set-upstream origin "$BRANCH"
+
+      - name: Open a pull request for maintainer review
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CURRENT_SHA: ${{ needs.validate.outputs.current }}
+          NEXT_SHA: ${{ needs.validate.outputs.next }}
+          BRANCH: ${{ needs.validate.outputs.branch }}
+          HOME: ${{ runner.temp }}/upstream-update-home
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/legible-node-proposal"
+          cat > upstream-update-pr.md <<EOF
+          This proposal updates the pinned Legible dependency.
+
+          - Previous revision: $CURRENT_SHA
+          - Proposed revision: $NEXT_SHA
+          - Source: https://github.com/ryanfowler/legible/tree/$NEXT_SHA
+
+          The validation job ran the Rust format, Rust test, lint, native build,
+          host packed-package smoke test, Node golden/integration tests,
+          declaration checks, and pinned-revision checks. Review the generated
+          declaration/API diff and all non-exhaustive enum conversions before
+          merging. This workflow creates a pull request only; it never merges
+          or changes the primary/release branch directly.
+          EOF
+          gh pr create \
+            --base main \
+            --head "$BRANCH" \
+            --title "chore: update legible upstream to ${NEXT_SHA:0:12}" \
+            --body-file upstream-update-pr.md
+
+      - name: Run CI against the proposal branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ needs.validate.outputs.branch }}
+          HOME: ${{ runner.temp }}/upstream-update-home
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/legible-node-proposal"
+          proposal_sha=$(git rev-parse HEAD)
+          gh workflow run CI.yml --ref "$BRANCH"
+          run_id=''
+          for attempt in {1..30}; do
+            run_id=$(gh run list --workflow CI.yml --branch "$BRANCH" \
+              --event workflow_dispatch --limit 10 --json databaseId,headSha \
+              --jq ".[] | select(.headSha == \"$proposal_sha\") | .databaseId // empty" | head -n 1)
+            if [[ -n "$run_id" ]]; then break; fi
+            sleep 2
+          done
+          if [[ -z "$run_id" ]]; then
+            echo 'The manually dispatched CI run did not appear for the proposal.' >&2
+            exit 1
+          fi
+          gh run watch "$run_id" --exit-status
