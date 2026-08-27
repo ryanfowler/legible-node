@@ -701,11 +701,13 @@ if (!nativeBinding) {
 
 module.exports = nativeBinding
 module.exports.ExtractedPage = nativeBinding.ExtractedPage
+module.exports.Extractor = nativeBinding.Extractor
 module.exports.AcceptanceException = nativeBinding.AcceptanceException
 module.exports.AttemptRejectionReason = nativeBinding.AttemptRejectionReason
 module.exports.CandidateSource = nativeBinding.CandidateSource
 module.exports.CleanupActionKind = nativeBinding.CleanupActionKind
 module.exports.ContentTag = nativeBinding.ContentTag
+module.exports.extract = nativeBinding.extract
 module.exports.ExtractionStrategy = nativeBinding.ExtractionStrategy
 module.exports.MetadataSource = nativeBinding.MetadataSource
 module.exports.RootSelectionReason = nativeBinding.RootSelectionReason

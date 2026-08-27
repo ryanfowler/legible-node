@@ -5,6 +5,8 @@ mod diagnostics;
 #[allow(dead_code)]
 mod error;
 #[allow(dead_code)]
+mod extractor;
+#[allow(dead_code)]
 mod metadata;
 #[allow(dead_code)]
 mod numeric;
@@ -12,6 +14,7 @@ mod numeric;
 mod options;
 mod page;
 
+pub use extractor::Extractor;
 pub use page::ExtractedPage;
 
 #[cfg(test)]
