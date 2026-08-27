@@ -55,6 +55,14 @@ export declare class ExtractedPage {
   private constructor()
 }
 
+/** A reusable immutable extraction configuration. */
+export declare class Extractor {
+  /** Builds an extractor from the supplied configuration. */
+  constructor(options?: ExtractorOptions | null | undefined)
+  /** Extracts a document using this extractor's immutable configuration. */
+  extract(html: string, options?: ExtractCallOptions | undefined | null): ExtractedPage
+}
+
 /** A positive exception that allowed an attempt to be accepted. */
 export type AcceptanceException =  'trustedSemanticRoot';
 
@@ -120,6 +128,15 @@ export type ContentTag =  'article'|
 'section'|
 'div';
 
+/** Extracts one document using a one-shot configuration. */
+export declare function extract(html: string, options?: ExtractOptions | null | undefined): ExtractedPage
+
+/** Options that apply to one extraction call on a reusable extractor. */
+export interface ExtractCallOptions {
+  /** Absolute source/base URL used to resolve relative URLs. */
+  url?: string
+}
+
 /** One attempt made by Legible while selecting and cleaning content. */
 export interface ExtractionAttempt {
   strategy: ExtractionStrategy
@@ -151,6 +168,18 @@ export type ExtractionStrategy =  'normal'|
 'relaxedVisibility'|
 'bodyFallback'|
 'metadataFallback';
+
+/** Options for one-shot extraction, including reusable extractor configuration. */
+export interface ExtractOptions {
+  parseBudget?: ParseBudget
+  structuredData?: boolean
+  diagnostics?: boolean
+  metadataDiagnostics?: boolean
+  retainStructuredData?: boolean
+  contentHint?: ContentSelector
+  contentRoot?: ContentSelector
+  url?: string
+}
 
 /** Reusable extractor configuration. */
 export interface ExtractorOptions {
