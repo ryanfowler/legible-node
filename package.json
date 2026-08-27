@@ -50,6 +50,8 @@
   "scripts": {
     "artifacts": "napi artifacts",
     "bench": "node --import @oxc-node/core/register benchmark/bench.ts",
+    "bench:memory": "node --expose-gc --import @oxc-node/core/register benchmark/memory.ts",
+    "bench:rust": "cargo run --release --bin direct-rust-bench -- benchmark/fixtures",
     "build": "napi build --platform --release",
     "postbuild": "node scripts/fix-dts.mjs",
     "build:debug": "napi build --platform",

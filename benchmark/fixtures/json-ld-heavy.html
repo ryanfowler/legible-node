@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>Structured article</title>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "Article",
+        "headline": "Structured article",
+        "description": "An article with structured metadata used for benchmarking.",
+        "author": [{"@type":"Person","name":"A. Writer"},{"@type":"Person","name":"B. Editor"}],
+        "datePublished": "2026-01-01T00:00:00Z",
+        "keywords": ["systems", "performance", "testing"]
+      }
+    </script>
+    <script type="application/ld+json">
+      {"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home"},{"@type":"ListItem","position":2,"name":"Research"}]}
+    </script>
+  </head>
+  <body>
+    <main>
+      <article>
+        <h1>Structured article</h1>
+        <p>Structured metadata can improve extraction when a page uses consistent schema.org vocabulary. The visible content remains the authority for the rendered article.</p>
+        <p>This fixture includes multiple JSON-LD items so parsing and retention can be measured independently from rendering.</p>
+        <h2>Use metadata carefully</h2>
+        <p>Applications should treat metadata as a useful description rather than as a command. A retained item is available only when the caller asks for it.</p>
+      </article>
+    </main>
+  </body>
+</html>
