@@ -5,8 +5,7 @@ env:
   MACOSX_DEPLOYMENT_TARGET: '10.13'
   CARGO_INCREMENTAL: '1'
 permissions:
-  contents: write
-  id-token: write
+  contents: read
 'on':
   push:
     branches:
@@ -22,7 +21,8 @@ permissions:
   pull_request: null
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # A release can publish immutable npm packages before the workflow ends.
+  cancel-in-progress: false
 jobs:
   lint:
     name: Lint
@@ -285,13 +285,45 @@ jobs:
       - name: Test binding
         run: pnpm test
 
+  release-check:
+    name: Check release commit
+    runs-on: ubuntu-latest
+    outputs:
+      release: ${{ steps.release.outputs.release }}
+      tag: ${{ steps.release.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Determine release version
+        id: release
+        shell: bash
+        run: |
+          version=$(node -p "require('./package.json').version")
+          subject=$(git log -1 --pretty=%s)
+          if [[ "$subject" == "v$version" || "$subject" == "$version" ]]; then
+            if [[ "$version" == *-* ]]; then
+              echo "tag=next" >> "$GITHUB_OUTPUT"
+            else
+              echo "tag=latest" >> "$GITHUB_OUTPUT"
+            fi
+            echo "release=true" >> "$GITHUB_OUTPUT"
+            echo "Release commit for $version"
+          else
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            echo "Not a release commit ($subject)"
+          fi
+
   publish:
-    name: Publish
+    name: Validate and publish release
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.release-check.outputs.release == 'true'
     runs-on: ubuntu-latest
     needs:
+      - release-check
       - lint
       - test-macOS-windows-binding
       - test-linux-binding
+    permissions:
+      contents: write
+      id-token: write
     steps:
       - uses: actions/checkout@v7
       - name: setup pnpm
@@ -307,27 +339,68 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           path: artifacts
-      - name: create npm dirs
+      - name: Create npm target directories
         run: pnpm napi create-npm-dirs
-      - name: Move artifacts
+      - name: Collect native artifacts
         run: pnpm artifacts
-      - name: List packages
-        run: ls -R ./npm
-        shell: bash
-      - name: Publish
+      - name: Verify every configured artifact
+        run: pnpm verify:artifacts
+      - name: Pack and install-test release packages
+        run: pnpm verify:package -- --save-tarballs .release-tarballs
+      - name: Configure npm authentication
+        if: needs.release-check.outputs.release == 'true'
         run: |
           npm config set provenance true
-          if git log -1 --pretty=%B | grep "^v\?[0-9]\+\.[0-9]\+\.[0-9]\+$";
-          then
-            echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" >> ~/.npmrc
-            npm publish --access public
-          elif git log -1 --pretty=%B | grep "^v\?[0-9]\+\.[0-9]\+\.[0-9]\+";
-          then
-            echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" >> ~/.npmrc
-            npm publish --tag next --access public
+          echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" >> ~/.npmrc
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Publish platform packages
+        if: needs.release-check.outputs.release == 'true'
+        run: pnpm napi pre-publish --tag-style npm --root-publisher npm --no-gh-release
+        env:
+          NPM_CONFIG_TAG: ${{ needs.release-check.outputs.tag }}
+      - name: Verify platform packages before publishing the root
+        if: needs.release-check.outputs.release == 'true'
+        run: pnpm verify:registry --platforms-only --require-provenance --local-tarballs .release-tarballs
+      - name: Test the final root manifest and optional dependencies
+        if: needs.release-check.outputs.release == 'true'
+        run: pnpm verify:package -- --include-optional --save-tarballs .release-tarballs
+      - name: Publish root package last
+        if: needs.release-check.outputs.release == 'true'
+        shell: bash
+        run: |
+          package=$(node -p "require('./package.json').name")
+          version=$(node -p "require('./package.json').version")
+          if npm view "$package@$version" version --json --registry https://registry.npmjs.org/ >/dev/null 2>&1; then
+            echo "$package@$version is already published; continuing with verification"
           else
-            echo "Not a release, skipping publish"
+            npm publish --ignore-scripts --provenance --access public --tag "$NPM_TAG"
           fi
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TAG: ${{ needs.release-check.outputs.tag }}
+      - name: Verify the complete published package graph
+        if: needs.release-check.outputs.release == 'true'
+        run: pnpm verify:registry --require-provenance --local-tarballs .release-tarballs
+        env:
+          NPM_CONFIG_REGISTRY: https://registry.npmjs.org/
+      - name: Create GitHub release after registry verification
+        if: needs.release-check.outputs.release == 'true'
+        shell: bash
+        run: |
+          version=$(node -p "require('./package.json').version")
+          tag="v$version"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "GitHub release $tag already exists"
+          elif [[ "$version" == *-* ]]; then
+            gh release create "$tag" --target "$GITHUB_SHA" --generate-notes --prerelease
+          else
+            gh release create "$tag" --target "$GITHUB_SHA" --generate-notes
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Explain release recovery
+        if: failure() && needs.release-check.outputs.release == 'true'
+        run: |
+          echo 'Publication is intentionally stopped. Do not rebuild an already-published version.'
+          echo 'Inventory published platform packages and rerun the unchanged artifacts for missing packages only.'
+          echo 'Publish the root package only after all platform packages pass registry verification.'

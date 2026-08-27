@@ -145,18 +145,32 @@ MEMORY_CYCLES=10 MEMORY_ITERATIONS=250 pnpm bench:memory
 
 ## Release package
 
-Ensure you have set your **NPM_TOKEN** in the `GitHub` project setting.
+Releases use napi-rs's root package plus one optional package per configured
+platform. The workflow validates every binary, packs and install-tests the root
+and host package, publishes platform packages first, verifies them in the npm
+registry, and publishes the root package last. Consumers need no Rust compiler,
+`node-gyp`, or post-install binary downloader.
 
-In `Settings -> Secrets`, add **NPM_TOKEN** into it.
+Set `NPM_TOKEN` in the GitHub repository settings before the first release.
+The workflow enables npm provenance and uses the `latest` tag for stable
+versions and `next` for prereleases.
 
-When you want to release the package:
+Create a version commit and push it to `main`:
 
 ```bash
-npm version [<newversion> | major | minor | patch | premajor | preminor | prepatch | prerelease [--preid=<prerelease-id>] | from-git]
-
+npm version [<newversion> | major | minor | patch | premajor | preminor | prepatch | prerelease --preid=<prerelease-id>]
 git push
 ```
 
-GitHub actions will do the rest job for you.
+A missing, duplicate, unexpected, or mismatched artifact stops the workflow
+before any registry write. The root package cannot publish until every
+platform package is visible in the registry. Do not rerun a release with
+rebuilt binaries after a partial publish because npm versions are immutable.
+Instead, inventory the published `@ryanfowler/legible-<platform>` packages,
+rerun the unchanged artifacts for missing packages only, and publish the root
+package only after registry verification passes.
 
-> WARN: Don't run `npm publish` manually.
+The workflow also verifies registry `dist` metadata and npm provenance after
+publication. Do not run `npm publish` manually; it can publish platform
+packages through the package lifecycle, but it cannot provide the complete
+release workflow and recovery checks.

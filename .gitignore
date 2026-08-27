@@ -149,6 +149,11 @@ dist
 *.node
 *.wasm
 
+# Generated release staging directories.
+npm/
+artifacts/
+.release-tarballs/
+
 ### Node Patch ###
 # Serverless Webpack directories
 .webpack/

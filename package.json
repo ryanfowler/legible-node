@@ -48,7 +48,10 @@
     "access": "public"
   },
   "scripts": {
-    "artifacts": "napi artifacts",
+    "artifacts": "napi artifacts --output-dir artifacts --npm-dir npm",
+    "verify:artifacts": "node scripts/verify-artifacts.mjs --artifacts-dir artifacts",
+    "verify:package": "node scripts/verify-package.mjs",
+    "verify:registry": "node scripts/verify-registry.mjs",
     "bench": "node --import @oxc-node/core/register benchmark/bench.ts",
     "bench:memory": "node --expose-gc --import @oxc-node/core/register benchmark/memory.ts",
     "bench:rust": "cargo run --release --bin direct-rust-bench -- benchmark/fixtures",
@@ -60,7 +63,7 @@
     "format:oxfmt": "oxfmt",
     "format:rs": "cargo fmt",
     "lint": "oxlint",
-    "prepublishOnly": "napi prepublish -t npm",
+    "prepublishOnly": "napi prepublish -t npm --no-gh-release && node scripts/verify-registry.mjs --platforms-only",
     "test": "run-s test:types test:unit",
     "test:dts": "node scripts/verify-dts.mjs",
     "test:types": "run-s test:dts test:types:ts",
