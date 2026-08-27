@@ -13,6 +13,7 @@ const ci = readFileSync(new URL('../.github/workflows/CI.yml', import.meta.url),
 const development = readFileSync(new URL('../docs/development.md', import.meta.url), 'utf8')
 const cargo = readFileSync(new URL('../Cargo.toml', import.meta.url), 'utf8')
 const cargoLock = readFileSync(new URL('../Cargo.lock', import.meta.url), 'utf8')
+const releaseScript = readFileSync(new URL('../scripts/verify-release.mjs', import.meta.url), 'utf8')
 
 const requiredReadmeSections = [
   '## Requirements and support',
@@ -118,6 +119,9 @@ test('developer notes document the pinned revision and safe release order', (t) 
     '--require-provenance',
     'npm publish --ignore-scripts',
     'npm/linux-x64-gnu',
+    'pnpm verify:release',
+    '0.1.0-rc.0',
+    'npm versions are immutable',
   ]) {
     t.true(development.includes(term), term)
   }
@@ -128,4 +132,6 @@ test('developer notes document the pinned revision and safe release order', (t) 
   t.true(platformPublication >= 0)
   t.true(platformVerification > platformPublication)
   t.true(rootPublication > platformVerification)
+  t.true(releaseScript.includes('requireReleaseCommit'))
+  t.true(releaseScript.includes('consumer install hook'))
 })

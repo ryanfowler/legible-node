@@ -33,6 +33,39 @@ function runNpm(args, options = {}) {
   })
 }
 
+function runTypeScriptSmoke(installDir, packageName) {
+  const typescriptCli = join(projectRoot, 'node_modules', 'typescript', 'bin', 'tsc')
+  if (!existsSync(typescriptCli)) throw new Error(`missing TypeScript compiler: ${typescriptCli}`)
+  const source = join(installDir, 'type-smoke.mts')
+  const config = join(installDir, 'tsconfig.json')
+  writeFileSync(
+    source,
+    `import { Extractor, extractAsync } from ${JSON.stringify(packageName)}\n` +
+      `const page = new Extractor().extract('<main><p>Type smoke</p></main>')\n` +
+      `const rendered: string = page.markdown({ maxLineWidth: 80 })\n` +
+      `extractAsync('<main><p>Type smoke</p></main>').then((asyncPage) => asyncPage.text())\n` +
+      `void rendered\n`,
+  )
+  writeFileSync(
+    config,
+    JSON.stringify({
+      compilerOptions: {
+        module: 'NodeNext',
+        moduleResolution: 'NodeNext',
+        target: 'ES2022',
+        strict: true,
+        skipLibCheck: true,
+        noEmit: true,
+      },
+      include: [source],
+    }),
+  )
+  execFileSync(process.execPath, [typescriptCli, '--project', config], {
+    cwd: installDir,
+    stdio: 'pipe',
+  })
+}
+
 function verifyOptionalDependencies(packageJson, includeOptional) {
   if (!includeOptional) return
   const optionalDependencies = packageJson.optionalDependencies
@@ -82,6 +115,12 @@ function normalizePlatformManifests(targetPackages) {
   }
 }
 
+function verifyNoConsumerInstallHooks(manifest, label) {
+  for (const hook of ['preinstall', 'install', 'postinstall', 'prepublish', 'prepare']) {
+    if (manifest.scripts?.[hook]) throw new Error(`${label} contains unsupported consumer install hook ${hook}`)
+  }
+}
+
 function pack(packageDirectory, destination) {
   const output = runNpm(['pack', '--ignore-scripts', '--json', '--pack-destination', destination], {
     cwd: packageDirectory,
@@ -101,6 +140,7 @@ export function verifyPackedPackages({
 } = {}) {
   const root = resolve(cwd)
   const packageJson = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
+  verifyNoConsumerInstallHooks(packageJson, 'root package')
   verifyOptionalDependencies(packageJson, includeOptional)
   const target = targetForHost()
   if (!target) throw new Error(`unsupported host for package smoke test: ${process.platform}/${process.arch}`)
@@ -111,6 +151,7 @@ export function verifyPackedPackages({
     if (!identity) throw new Error(`cannot map configured target ${configuredTarget} to an npm package identity`)
     const directory = join(root, npmDir, identity)
     const manifest = JSON.parse(readFileSync(join(directory, 'package.json'), 'utf8'))
+    verifyNoConsumerInstallHooks(manifest, `${identity} platform package`)
     return { identity, directory, manifest }
   })
   const temp = mkdtempSync(join(tmpdir(), 'legible-node-release-'))
@@ -157,6 +198,7 @@ export function verifyPackedPackages({
     )
     runSmoke(rootInstall, packageJson.name, 'cjs')
     runSmoke(rootInstall, packageJson.name, 'esm')
+    runTypeScriptSmoke(rootInstall, packageJson.name)
 
     const targetTarball = targetTarballs.get(targetPackageJson.name)?.path
     if (!targetTarball) throw new Error(`missing packed host package ${targetPackageJson.name}`)
