@@ -7,7 +7,15 @@ import { fileURLToPath } from 'node:url'
 
 const html = '<main><h1>Packed package</h1><p>Enough useful content for a packed package smoke test.</p></main>'
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm'
+const windowsNpmCli = join(dirname(process.execPath), 'node_modules', 'npm', 'bin', 'npm-cli.js')
+
+function runNpm(args: string[], options: Parameters<typeof execFileSync>[2]) {
+  if (process.platform === 'win32') {
+    if (!existsSync(windowsNpmCli)) throw new Error(`missing npm CLI: ${windowsNpmCli}`)
+    return execFileSync(process.execPath, [windowsNpmCli, ...args], options)
+  }
+  return execFileSync('npm', args, options)
+}
 
 function nativeTargetForHost() {
   if (process.platform === 'darwin') return `darwin-${process.arch}`
@@ -33,15 +41,14 @@ test('the packed package loads through its CJS and ESM entry points', async (t) 
 
   const temp = mkdtempSync(join(tmpdir(), 'legible-node-package-'))
   try {
-    const packOutput = execFileSync(npmCommand, ['pack', '--ignore-scripts', '--json', '--pack-destination', temp], {
+    const packOutput = runNpm(['pack', '--ignore-scripts', '--json', '--pack-destination', temp], {
       cwd: projectRoot,
       encoding: 'utf8',
     })
     const packInfo = JSON.parse(packOutput) as Array<{ filename: string }>
     const tarball = join(temp, packInfo[0].filename)
     const installDir = join(temp, 'install')
-    execFileSync(
-      npmCommand,
+    runNpm(
       ['install', '--ignore-scripts', '--no-audit', '--no-fund', '--no-package-lock', '--prefix', installDir, tarball],
       { cwd: projectRoot, stdio: 'ignore' },
     )
