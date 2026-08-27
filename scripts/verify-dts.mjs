@@ -40,10 +40,10 @@ if (/^\s*private constructor\(\)\s*$/m.test(extractor)) {
 }
 
 for (const signature of [
-  'export declare function extract(html: string, options?: ExtractOptions | null | undefined): ExtractedPage',
-  'export declare function extractAsync(html: string, options?: ExtractAsyncOptions | null | undefined): Promise<ExtractedPage>',
-  'extract(html: string, options?: ExtractCallOptions | undefined | null): ExtractedPage',
-  'extractAsync(html: string, options?: ExtractAsyncCallOptions | undefined | null): Promise<ExtractedPage>',
+  'export declare function extract(html: string, options?: ExtractOptions | null | undefined): Promise<ExtractedPage>',
+  'export declare function extractSync(html: string, options?: ExtractSyncOptions | null | undefined): ExtractedPage',
+  'extract(html: string, options?: ExtractCallOptions | undefined | null): Promise<ExtractedPage>',
+  'extractSync(html: string, options?: ExtractSyncCallOptions | undefined | null): ExtractedPage',
 ]) {
   const prefix = signature.startsWith('export ') ? '^' : '^\\s+'
   const escaped = signature.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -57,8 +57,8 @@ for (const interfaceName of [
   'ExtractorOptions',
   'ExtractOptions',
   'ExtractCallOptions',
-  'ExtractAsyncCallOptions',
-  'ExtractAsyncOptions',
+  'ExtractSyncCallOptions',
+  'ExtractSyncOptions',
   'MarkdownOptions',
   'ExtractionDiagnostics',
   'MetadataDiagnostics',

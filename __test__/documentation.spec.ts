@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
-import { extract } from '../index.js'
+import { extractSync } from '../index.js'
 
 const readme = readFileSync(new URL('../README.md', import.meta.url), 'utf8')
 const declarations = readFileSync(new URL('../index.d.ts', import.meta.url), 'utf8')
@@ -41,7 +41,7 @@ const requiredReadmeSections = [
 
 const publicApiTerms = [
   'extract',
-  'extractAsync',
+  'extractSync',
   'Extractor',
   'ExtractedPage',
   'metadata',
@@ -108,7 +108,7 @@ test('the upstream revision commands report a synchronized local pin', (t) => {
 
 test('README selector example is executable with its documented HTML', (t) => {
   const html = '<article id="main-article" class="article-body"><h1>An article</h1><p>Useful content.</p></article>'
-  const page = extract(html, {
+  const page = extractSync(html, {
     contentHint: { type: 'class', value: 'article-body' },
     contentRoot: { type: 'id', value: 'main-article' },
   })

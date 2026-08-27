@@ -59,10 +59,10 @@ export declare class ExtractedPage {
 export declare class Extractor {
   /** Builds an extractor from the supplied configuration. */
   constructor(options?: ExtractorOptions | null | undefined)
-  /** Extracts a document using this extractor's immutable configuration. */
-  extract(html: string, options?: ExtractCallOptions | undefined | null): ExtractedPage
   /** Extracts a document on napi-rs's libuv worker pool. */
-  extractAsync(html: string, options?: ExtractAsyncCallOptions | undefined | null): Promise<ExtractedPage>
+  extract(html: string, options?: ExtractCallOptions | undefined | null): Promise<ExtractedPage>
+  /** Extracts a document synchronously on the calling thread. */
+  extractSync(html: string, options?: ExtractSyncCallOptions | undefined | null): ExtractedPage
 }
 
 /** A positive exception that allowed an attempt to be accepted. */
@@ -130,37 +130,15 @@ export type ContentTag =  'article'|
 'section'|
 'div';
 
-/** Extracts one document using a one-shot configuration. */
-export declare function extract(html: string, options?: ExtractOptions | null | undefined): ExtractedPage
-
 /** Extracts one document on napi-rs's libuv worker pool. */
-export declare function extractAsync(html: string, options?: ExtractAsyncOptions | null | undefined): Promise<ExtractedPage>
+export declare function extract(html: string, options?: ExtractOptions | null | undefined): Promise<ExtractedPage>
 
-/** Options that apply to one asynchronous extraction call. */
-export interface ExtractAsyncCallOptions {
+/** Options that apply to one asynchronous extraction call on a reusable extractor. */
+export interface ExtractCallOptions {
   /** Absolute source/base URL used to resolve relative URLs. */
   url?: string
   /** Cancels the task if it has not started running yet. */
   signal?: AbortSignal | null | undefined
-}
-
-/** Options for asynchronous one-shot extraction. */
-export interface ExtractAsyncOptions {
-  parseBudget?: ParseBudget
-  structuredData?: boolean
-  diagnostics?: boolean
-  metadataDiagnostics?: boolean
-  retainStructuredData?: boolean
-  contentHint?: ContentSelector
-  contentRoot?: ContentSelector
-  url?: string
-  signal?: AbortSignal | null | undefined
-}
-
-/** Options that apply to one extraction call on a reusable extractor. */
-export interface ExtractCallOptions {
-  /** Absolute source/base URL used to resolve relative URLs. */
-  url?: string
 }
 
 /** One attempt made by Legible while selecting and cleaning content. */
@@ -195,7 +173,7 @@ export type ExtractionStrategy =  'normal'|
 'bodyFallback'|
 'metadataFallback';
 
-/** Options for one-shot extraction, including reusable extractor configuration. */
+/** Options for asynchronous one-shot extraction, including reusable extractor configuration. */
 export interface ExtractOptions {
   parseBudget?: ParseBudget
   structuredData?: boolean
@@ -205,6 +183,7 @@ export interface ExtractOptions {
   contentHint?: ContentSelector
   contentRoot?: ContentSelector
   url?: string
+  signal?: AbortSignal | null | undefined
 }
 
 /** Reusable extractor configuration. */
@@ -216,6 +195,27 @@ export interface ExtractorOptions {
   retainStructuredData?: boolean
   contentHint?: ContentSelector
   contentRoot?: ContentSelector
+}
+
+/** Extracts one document synchronously on the calling thread. */
+export declare function extractSync(html: string, options?: ExtractSyncOptions | null | undefined): ExtractedPage
+
+/** Options that apply to one synchronous extraction call on a reusable extractor. */
+export interface ExtractSyncCallOptions {
+  /** Absolute source/base URL used to resolve relative URLs. */
+  url?: string
+}
+
+/** Options for synchronous one-shot extraction. */
+export interface ExtractSyncOptions {
+  parseBudget?: ParseBudget
+  structuredData?: boolean
+  diagnostics?: boolean
+  metadataDiagnostics?: boolean
+  retainStructuredData?: boolean
+  contentHint?: ContentSelector
+  contentRoot?: ContentSelector
+  url?: string
 }
 
 /** Options for rendering an extracted page as Markdown. */

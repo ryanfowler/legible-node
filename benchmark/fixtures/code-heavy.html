@@ -12,7 +12,7 @@
   return JSON.parse(source) as Config
 }
 
-export async function run(path: string): Promise<number> {
+export async function run(path: string): Promise&lt;number&gt; {
   const config = readConfig(path)
   return execute(config)
 }</code></pre>

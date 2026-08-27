@@ -39,16 +39,18 @@ npm install @ryanfowler/legible
 
 ## Quick start
 
-### Synchronous extraction
+### Asynchronous extraction
 
-Use `extract` for small documents, scripts, CLIs, and code that already runs in
-a Worker Thread. It runs on the calling thread.
+Use `extract` for CPU-heavy documents in a server or other event-loop sensitive
+application. It runs extraction in napi-rs's libuv worker pool.
 
 ```ts
 import { extract } from '@ryanfowler/legible'
 
 const html = '<main><h1>An article</h1><p>Useful content.</p></main>'
-const page = extract(html, { url: 'https://example.com/article' })
+const page = await extract(html, {
+  url: 'https://example.com/article',
+})
 
 console.log(page.metadata.title)
 console.log(page.markdown())
@@ -59,23 +61,7 @@ The returned `ExtractedPage` keeps the native semantic representation. Its
 `metadata`, `metrics`, diagnostics, and structured-data getters return fresh
 JavaScript values.
 
-### Asynchronous extraction
-
-Use `extractAsync` for CPU-heavy documents in a server or other event-loop
-sensitive application. It runs extraction in napi-rs's libuv worker pool.
-
-```ts
-import { extractAsync } from '@ryanfowler/legible'
-
-const html = '<main><h1>An article</h1><p>Useful content.</p></main>'
-const page = await extractAsync(html, {
-  url: 'https://example.com/article',
-})
-
-console.log(page.markdown())
-```
-
-`extractAsync` does not use Tokio. It is CPU work scheduled through Node's
+`extract` does not use Tokio. It is CPU work scheduled through Node's
 worker pool, so cap concurrent extractions in high-throughput services. Use
 Worker Threads when extraction must be isolated from other libuv worker-pool
 work.
@@ -86,13 +72,28 @@ native callback after extraction starts.
 ```ts
 const html = '<main><h1>An article</h1><p>Useful content.</p></main>'
 const controller = new AbortController()
-const pending = extractAsync(html, { signal: controller.signal })
+const pending = extract(html, { signal: controller.signal })
 controller.abort() // Cancels only if the native task has not started.
 try {
   await pending
 } catch (error) {
   if (!(error instanceof Error) || error.name !== 'AbortError') throw error
 }
+```
+
+### Synchronous extraction
+
+Use `extractSync` for small documents, scripts, CLIs, and code that already runs
+in a Worker Thread. It runs on the calling thread and blocks it while
+extracting.
+
+```ts
+import { extractSync } from '@ryanfowler/legible'
+
+const html = '<main><h1>An article</h1><p>Useful content.</p></main>'
+const page = extractSync(html, { url: 'https://example.com/article' })
+
+console.log(page.markdown())
 ```
 
 ### Fetching HTML
@@ -102,13 +103,13 @@ redirects, or execute JavaScript. Fetch the page in the application and pass
 the final response URL so relative links and media resolve correctly.
 
 ```ts
-import { extractAsync } from '@ryanfowler/legible'
+import { extract } from '@ryanfowler/legible'
 
 const requestedUrl = 'https://example.com/article'
 const response = await fetch(requestedUrl)
 if (!response.ok) throw new Error(`HTTP ${response.status}`)
 
-const page = await extractAsync(await response.text(), {
+const page = await extract(await response.text(), {
   url: response.url,
 })
 console.log(page.markdown())
@@ -136,7 +137,7 @@ const extractor = new Extractor({
   },
 })
 
-const page = await extractor.extractAsync(html, {
+const page = await extractor.extract(html, {
   url: 'https://example.com/article',
 })
 ```
@@ -145,7 +146,7 @@ The one-shot functions accept the same extractor options together with `url`:
 
 ```ts
 const html = '<article id="main-article" class="article-body"><h1>An article</h1><p>Useful content.</p></article>'
-const page = extract(html, {
+const page = extractSync(html, {
   contentHint: { type: 'tag', value: 'article' },
   url: 'https://example.com/article',
 })
@@ -187,13 +188,13 @@ and fails if it is missing. Selectors are typed; arbitrary CSS selectors are
 not accepted.
 
 ```ts
-const page = extract(html, {
+const page = extractSync(html, {
   contentHint: { type: 'class', value: 'article-body' },
   contentRoot: { type: 'id', value: 'main-article' },
 })
 
 // Supported tag values: 'article', 'main', 'section', and 'div'.
-const byTag = extract(html, {
+const byTag = extractSync(html, {
   contentRoot: { type: 'tag', value: 'article' },
 })
 ```
@@ -238,7 +239,7 @@ parsed schema.org items remain available on the result:
 
 ```ts
 const html = '<main><h1>An article</h1><p>Useful content.</p></main>'
-const page = extract(html, {
+const page = extractSync(html, {
   structuredData: true,
   retainStructuredData: true,
 })
@@ -256,7 +257,7 @@ Diagnostics are opt-in because they retain and convert additional detail:
 
 ```ts
 const html = '<main><h1>An article</h1><p>Useful content.</p></main>'
-const page = extract(html, {
+const page = extractSync(html, {
   diagnostics: true,
   metadataDiagnostics: true,
 })
@@ -325,7 +326,7 @@ The domain codes are:
 const html = '<main><h1>An article</h1><p>Useful content.</p></main>'
 const url = 'https://example.com/article'
 try {
-  const page = await extractAsync(html, { url })
+  const page = await extract(html, { url })
   console.log(page.markdown())
 } catch (error) {
   if (error instanceof Error && 'code' in error && error.code === 'ERR_LEGIBLE_NO_CONTENT') {

@@ -1,6 +1,6 @@
 import test from 'ava'
 
-import { ExtractedPage, Extractor, extract } from '../index.js'
+import { ExtractedPage, Extractor, extractSync } from '../index.js'
 import type { LegibleError } from '../index.js'
 
 const HTML = `
@@ -19,8 +19,8 @@ const HTML = `
 test('top-level and reusable sync extraction have behavioral parity', (t) => {
   const url = 'https://example.com/story'
   const options = { diagnostics: true, structuredData: false }
-  const oneShot = extract(HTML, { ...options, url })
-  const reusable = new Extractor(options).extract(HTML, { url })
+  const oneShot = extractSync(HTML, { ...options, url })
+  const reusable = new Extractor(options).extractSync(HTML, { url })
 
   t.true(oneShot instanceof ExtractedPage)
   t.deepEqual(oneShot.metadata, reusable.metadata)
@@ -32,13 +32,16 @@ test('top-level and reusable sync extraction have behavioral parity', (t) => {
 })
 
 test('sync URL options resolve relative links', (t) => {
-  const page = extract(HTML, { url: 'https://example.com/story' })
+  const page = extractSync(HTML, { url: 'https://example.com/story' })
 
   t.true(page.markdown().includes('[relative article link](https://example.com/article)'))
 })
 
 test('invalid URLs map to structured Legible errors on both sync paths', (t) => {
-  const cases = [() => extract(HTML, { url: 'relative' }), () => new Extractor().extract(HTML, { url: 'relative' })]
+  const cases = [
+    () => extractSync(HTML, { url: 'relative' }),
+    () => new Extractor().extractSync(HTML, { url: 'relative' }),
+  ]
 
   for (const run of cases) {
     const error = t.throws(run) as LegibleError
@@ -50,9 +53,9 @@ test('invalid URLs map to structured Legible errors on both sync paths', (t) => 
 
 test('reusing an extractor does not leak document or URL state', (t) => {
   const extractor = new Extractor()
-  const first = extractor.extract(HTML, { url: 'https://example.com/first' })
+  const first = extractor.extractSync(HTML, { url: 'https://example.com/first' })
   const secondHtml = HTML.replaceAll('Reusable extraction', 'Second document')
-  const second = extractor.extract(secondHtml, { url: 'https://example.com/second' })
+  const second = extractor.extractSync(secondHtml, { url: 'https://example.com/second' })
 
   t.is(first.metadata.title, 'Reusable extraction')
   t.is(second.metadata.title, 'Second document')

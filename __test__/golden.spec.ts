@@ -1,7 +1,7 @@
 import test from 'ava'
 import { readFileSync } from 'node:fs'
 
-import { extract } from '../index.js'
+import { extractSync } from '../index.js'
 import type { ContentSelector } from '../index.js'
 
 const article = readFileSync(new URL('./fixtures/article.html', import.meta.url), 'utf8')
@@ -21,7 +21,7 @@ function assertFixedShape(value: object, keys: readonly string[]) {
 }
 
 test('article fixture renders deterministic Markdown, text, and canonical HTML', (t) => {
-  const page = extract(article, articleOptions)
+  const page = extractSync(article, articleOptions)
 
   t.is(
     page.markdown(),
@@ -44,7 +44,7 @@ test('article fixture renders deterministic Markdown, text, and canonical HTML',
 })
 
 test('metadata fixture preserves complete metadata and diagnostics provenance', (t) => {
-  const page = extract(metadataHtml, {
+  const page = extractSync(metadataHtml, {
     ...articleOptions,
     diagnostics: true,
     metadataDiagnostics: true,
@@ -113,7 +113,7 @@ test('metadata fixture preserves complete metadata and diagnostics provenance', 
 })
 
 test('structured fixture exposes every page metric and semantic output', (t) => {
-  const page = extract(structures, articleOptions)
+  const page = extractSync(structures, articleOptions)
   const metrics = page.metrics
 
   assertFixedShape(metrics, [
@@ -165,7 +165,7 @@ test('structured fixture exposes every page metric and semantic output', (t) => 
 })
 
 test('semantic structure metrics retain links, footnotes, and math', (t) => {
-  const metrics = extract(semanticStructures, {
+  const metrics = extractSync(semanticStructures, {
     ...articleOptions,
     contentRoot: { type: 'tag', value: 'main' },
   }).metrics
@@ -179,8 +179,8 @@ test('semantic structure metrics retain links, footnotes, and math', (t) => {
 })
 
 test('structured data retention is independent from structured-data extraction', (t) => {
-  const enabled = extract(metadataHtml)
-  const disabled = extract(metadataHtml, { structuredData: false })
+  const enabled = extractSync(metadataHtml)
+  const disabled = extractSync(metadataHtml, { structuredData: false })
 
   t.is(enabled.structuredData, null)
   t.is(disabled.structuredData, null)
@@ -190,8 +190,8 @@ test('structured data retention is independent from structured-data extraction',
   t.is(disabled.metadata.description, 'Meta description')
   t.deepEqual(enabled.metadata.authors, ['JSON Author'])
   t.deepEqual(disabled.metadata.authors, ['Meta Author'])
-  t.deepEqual(extract(metadataHtml, { retainStructuredData: true }).structuredData?.length, 2)
-  t.deepEqual(extract(metadataHtml, { structuredData: false, retainStructuredData: true }).structuredData, [])
+  t.deepEqual(extractSync(metadataHtml, { retainStructuredData: true }).structuredData?.length, 2)
+  t.deepEqual(extractSync(metadataHtml, { structuredData: false, retainStructuredData: true }).structuredData, [])
 })
 
 test('content roots support id, class, and all supported tags', (t) => {
@@ -205,11 +205,13 @@ test('content roots support id, class, and all supported tags', (t) => {
   ]
 
   for (const [contentRoot, expected] of cases) {
-    const page = extract(selectors, { contentRoot })
+    const page = extractSync(selectors, { contentRoot })
     t.true(page.text().startsWith(expected))
   }
 
-  const error = t.throws(() => extract(selectors, { contentRoot: { type: 'id', value: 'missing' } })) as unknown as {
+  const error = t.throws(() =>
+    extractSync(selectors, { contentRoot: { type: 'id', value: 'missing' } }),
+  ) as unknown as {
     code: string
   }
   t.is(error.code, 'ERR_LEGIBLE_CONTENT_ROOT_NOT_FOUND')
@@ -224,13 +226,13 @@ test('content hints accept every selector form without bypassing quality checks'
     { type: 'tag', value: 'section' } as const,
     { type: 'tag', value: 'div' } as const,
   ]) {
-    const page = extract(selectors, { contentHint })
+    const page = extractSync(selectors, { contentHint })
     t.true(page.text().length > 0)
   }
 })
 
 test('markdown options independently control links, images, and wrapping', (t) => {
-  const page = extract(article, articleOptions)
+  const page = extractSync(article, articleOptions)
   const defaults = page.markdown()
 
   t.true(defaults.includes('[relative link]('))

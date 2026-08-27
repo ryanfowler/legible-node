@@ -1,7 +1,7 @@
 import test from 'ava'
 import { readFileSync } from 'node:fs'
 
-import { extract, extractAsync } from '../index.js'
+import { extract, extractSync } from '../index.js'
 import type { LegibleError, ResourceLimit } from '../index.js'
 
 const article = readFileSync(new URL('./fixtures/article.html', import.meta.url), 'utf8')
@@ -47,7 +47,7 @@ test('every parser budget field maps to its stable resource error', (t) => {
   ]
 
   for (const [field, resource] of cases) {
-    const error = t.throws(() => extract(parserFixtures[field], { parseBudget: { [field]: 1 } }))
+    const error = t.throws(() => extractSync(parserFixtures[field], { parseBudget: { [field]: 1 } }))
     if (field === 'maxElements') {
       assertLegibleError(error, 'ERR_LEGIBLE_TOO_MANY_ELEMENTS')
       t.is(error.resource, 'elements')
@@ -68,13 +68,13 @@ test('JSON-LD byte, item, and depth budgets map to resource errors', (t) => {
   const limits = { maxJsonLdBytes: 8, maxJsonLdItems: 1, maxJsonLdDepth: 2 }
 
   for (const [field, html, resource] of cases) {
-    const error = t.throws(() => extract(html, { parseBudget: { [field]: limits[field as keyof typeof limits] } }))
+    const error = t.throws(() => extractSync(html, { parseBudget: { [field]: limits[field as keyof typeof limits] } }))
     assertResource(error, resource, limits[field as keyof typeof limits])
   }
 })
 
 test('zero budgets preserve the unlimited default behavior', (t) => {
-  const page = extract(article, {
+  const page = extractSync(article, {
     parseBudget: {
       maxInputBytes: 0,
       maxNodes: 0,
@@ -93,9 +93,12 @@ test('zero budgets preserve the unlimited default behavior', (t) => {
 
 test('all extraction domain errors use LegibleError codes', (t) => {
   const cases = [
-    [() => extract('<html><body></body></html>'), 'ERR_LEGIBLE_NO_CONTENT'],
-    [() => extract(article, { url: 'relative' }), 'ERR_LEGIBLE_INVALID_URL'],
-    [() => extract(article, { contentRoot: { type: 'id', value: 'missing' } }), 'ERR_LEGIBLE_CONTENT_ROOT_NOT_FOUND'],
+    [() => extractSync('<html><body></body></html>'), 'ERR_LEGIBLE_NO_CONTENT'],
+    [() => extractSync(article, { url: 'relative' }), 'ERR_LEGIBLE_INVALID_URL'],
+    [
+      () => extractSync(article, { contentRoot: { type: 'id', value: 'missing' } }),
+      'ERR_LEGIBLE_CONTENT_ROOT_NOT_FOUND',
+    ],
   ] as const
 
   for (const [run, code] of cases) {
@@ -106,8 +109,8 @@ test('all extraction domain errors use LegibleError codes', (t) => {
 })
 
 test('async budget errors preserve the same structured fields as sync errors', async (t) => {
-  const sync = t.throws(() => extract(jsonLd, { parseBudget: { maxJsonLdItems: 1 } }))
-  const asyncError = await t.throwsAsync(extractAsync(jsonLd, { parseBudget: { maxJsonLdItems: 1 } }))
+  const sync = t.throws(() => extractSync(jsonLd, { parseBudget: { maxJsonLdItems: 1 } }))
+  const asyncError = await t.throwsAsync(extract(jsonLd, { parseBudget: { maxJsonLdItems: 1 } }))
   assertResource(sync, 'json_ld_items', 1)
   assertResource(asyncError, 'json_ld_items', 1)
   t.is(asyncError.message, sync.message)
@@ -115,13 +118,13 @@ test('async budget errors preserve the same structured fields as sync errors', a
 
 test('invalid boundary values and selectors are argument errors, not Legible errors', (t) => {
   const invalidRuns = [
-    () => extract(article, { parseBudget: { maxNodes: -1 } }),
-    () => extract(article, { parseBudget: { maxNodes: 1.5 } }),
-    () => extract(article, { parseBudget: { maxNodes: Number.NaN } }),
-    () => extract(article, { parseBudget: { maxNodes: Number.POSITIVE_INFINITY } }),
-    () => extract(article, { parseBudget: { maxNodes: Number.MAX_SAFE_INTEGER + 1 } }),
-    () => extract(article, { contentRoot: { type: 'id', value: '' } }),
-    () => extract(article, { contentRoot: { type: 'class', value: 'two classes' } }),
+    () => extractSync(article, { parseBudget: { maxNodes: -1 } }),
+    () => extractSync(article, { parseBudget: { maxNodes: 1.5 } }),
+    () => extractSync(article, { parseBudget: { maxNodes: Number.NaN } }),
+    () => extractSync(article, { parseBudget: { maxNodes: Number.POSITIVE_INFINITY } }),
+    () => extractSync(article, { parseBudget: { maxNodes: Number.MAX_SAFE_INTEGER + 1 } }),
+    () => extractSync(article, { contentRoot: { type: 'id', value: '' } }),
+    () => extractSync(article, { contentRoot: { type: 'class', value: 'two classes' } }),
   ]
 
   for (const run of invalidRuns) {

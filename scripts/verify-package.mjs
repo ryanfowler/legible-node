@@ -40,11 +40,13 @@ function runTypeScriptSmoke(installDir, packageName) {
   const config = join(installDir, 'tsconfig.json')
   writeFileSync(
     source,
-    `import { Extractor, extractAsync } from ${JSON.stringify(packageName)}\n` +
-      `const page = new Extractor().extract('<main><p>Type smoke</p></main>')\n` +
+    `import { Extractor, extract, extractSync } from ${JSON.stringify(packageName)}\n` +
+      `const page = await new Extractor().extract('<main><p>Type smoke</p></main>')\n` +
+      `const syncPage = extractSync('<main><p>Type smoke</p></main>')\n` +
       `const rendered: string = page.markdown({ maxLineWidth: 80 })\n` +
-      `extractAsync('<main><p>Type smoke</p></main>').then((asyncPage) => asyncPage.text())\n` +
-      `void rendered\n`,
+      `extract('<main><p>Type smoke</p></main>').then((asyncPage) => asyncPage.text())\n` +
+      `void rendered\n` +
+      `void syncPage\n`,
   )
   writeFileSync(
     config,
@@ -100,8 +102,8 @@ function runSmoke(installDir, packageName, moduleKind) {
   const scriptName = moduleKind === 'esm' ? 'smoke.mjs' : 'smoke.cjs'
   const script =
     moduleKind === 'esm'
-      ? `import { extract } from ${JSON.stringify(packageName)}\nconst page = extract(${JSON.stringify(smokeHtml)})\nif (!page.markdown().includes('Enough useful content')) process.exit(1)\n`
-      : `const { extract } = require(${JSON.stringify(packageName)})\nconst page = extract(${JSON.stringify(smokeHtml)})\nif (!page.markdown().includes('Enough useful content')) process.exit(1)\n`
+      ? `import { extract } from ${JSON.stringify(packageName)}\nconst page = await extract(${JSON.stringify(smokeHtml)})\nif (!page.markdown().includes('Enough useful content')) process.exit(1)\n`
+      : `const { extract } = require(${JSON.stringify(packageName)})\nextract(${JSON.stringify(smokeHtml)}).then((page) => { if (!page.markdown().includes('Enough useful content')) process.exit(1) })\n`
   const path = join(installDir, scriptName)
   writeFileSync(path, script)
   execFileSync(process.execPath, [path], { cwd: installDir, stdio: 'pipe' })
