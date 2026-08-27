@@ -1,6 +1,8 @@
 import test from 'ava'
 
+import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 
 import { extract } from '../index.js'
 
@@ -14,6 +16,11 @@ const development = readFileSync(new URL('../docs/development.md', import.meta.u
 const cargo = readFileSync(new URL('../Cargo.toml', import.meta.url), 'utf8')
 const cargoLock = readFileSync(new URL('../Cargo.lock', import.meta.url), 'utf8')
 const releaseScript = readFileSync(new URL('../scripts/verify-release.mjs', import.meta.url), 'utf8')
+const upstreamRevisionScript = readFileSync(new URL('../scripts/upstream-revision.mjs', import.meta.url), 'utf8')
+const upstreamUpdateWorkflow = readFileSync(
+  new URL('../.github/workflows/upstream-update.yml', import.meta.url),
+  'utf8',
+)
 
 const requiredReadmeSections = [
   '## Requirements and support',
@@ -92,6 +99,13 @@ test('README documents the supported public workflow', (t) => {
   for (const target of packageJson.napi.targets) t.true(readme.includes(`\`${target}\``), target)
 })
 
+test('the upstream revision commands report a synchronized local pin', (t) => {
+  const script = fileURLToPath(new URL('../scripts/upstream-revision.mjs', import.meta.url))
+  const revision = execFileSync(process.execPath, [script, '--check'], { encoding: 'utf8' }).trim()
+  t.true(/^[0-9a-f]{40}$/.test(revision))
+  t.is(execFileSync(process.execPath, [script], { encoding: 'utf8' }).trim(), revision)
+})
+
 test('README selector example is executable with its documented HTML', (t) => {
   const html = '<article id="main-article" class="article-body"><h1>An article</h1><p>Useful content.</p></article>'
   const page = extract(html, {
@@ -105,6 +119,19 @@ test('README selector example is executable with its documented HTML', (t) => {
 
 test('developer notes document the pinned revision and safe release order', (t) => {
   t.true(development.includes('Updating upstream deliberately'))
+  t.true(development.includes('pnpm upstream:revision'))
+  t.true(development.includes('pnpm upstream:check'))
+  t.true(development.includes('upstream-update-*'))
+  t.true(upstreamRevisionScript.includes('readPinnedRevision'))
+  t.true(upstreamRevisionScript.includes('Cargo.lock'))
+  t.true(upstreamUpdateWorkflow.includes('workflow_dispatch'))
+  t.true(upstreamUpdateWorkflow.includes('cargo test --locked'))
+  t.true(upstreamUpdateWorkflow.includes('pnpm test'))
+  t.true(upstreamUpdateWorkflow.includes('pnpm exec ava __test__/package.spec.ts'))
+  t.true(upstreamUpdateWorkflow.includes('git diff --cached --name-only'))
+  t.true(upstreamUpdateWorkflow.includes('persist-credentials: false'))
+  t.true(upstreamUpdateWorkflow.includes('actions: write'))
+  t.true(upstreamUpdateWorkflow.includes('never merges'))
   t.true(development.includes('Never change the dependency to `branch = "main"`'))
   t.true(development.includes('Publishes platform packages first.'))
   t.true(development.includes('Publishes the root package last.'))

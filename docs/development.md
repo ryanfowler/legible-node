@@ -45,6 +45,37 @@ Treat an upstream update as a separate reviewed change:
 A future revision must not merge until an explicit review confirms the public
 Node API still matches the generated declarations and this documentation.
 
+### Inspecting and proposing an update
+
+Print the exact revision used by the checkout with:
+
+```bash
+pnpm upstream:revision
+```
+
+Check that the revision is synchronized in `Cargo.toml`, `Cargo.lock`, and the
+README with:
+
+```bash
+pnpm upstream:check
+```
+
+The **Propose upstream Legible update** GitHub Actions workflow is manual. Run
+it from the repository's Actions page to resolve the current upstream `main`
+commit, or provide an exact commit SHA. It creates an isolated
+`upstream-update-*` topic branch and opens a pull request; it never changes
+`main`, a release branch, or the dependency revision in place. The workflow
+updates `Cargo.lock`, runs the complete Rust and Node validation suite, and
+includes the old and new SHAs in the pull request. Maintainers must review the
+source/API diff, generated declarations, and non-exhaustive enum conversions
+before merging. The workflow also dispatches CI for the proposal branch and
+waits for that run to pass; this is the final blocking check even when a
+repository token policy prevents a pull request event from starting CI.
+
+The workflow derives the `cargo update -p` package selector from the current
+lockfile, so an upstream package-version change does not require a workflow
+edit. Do not use this workflow to update an immutable release commit.
+
 ## Local validation
 
 Use the project toolchain and lockfiles when possible:
