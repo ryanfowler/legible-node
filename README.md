@@ -1,176 +1,371 @@
 # `@ryanfowler/legible`
 
-![https://github.com/ryanfowler/legible-node/actions](https://github.com/ryanfowler/legible-node/workflows/CI/badge.svg)
+Fast readable-content extraction for Node.js, powered by the [Legible Rust
+crate](https://github.com/ryanfowler/legible). This package is a thin
+Node-API binding built with napi-rs. Extraction remains in Rust; JavaScript
+receives a native-backed page that renders its semantic content lazily.
 
-> Fast readable-content extraction for Node.js, powered by the Legible Rust crate.
+## Requirements and support
 
-## Upstream dependency
+- Node.js 22 and 24 are supported in blocking CI checks. Node.js 26 has a
+  non-blocking forward-compatibility check.
+- Prebuilt binaries are published for macOS x64 and arm64, Linux x64 and
+  arm64 with glibc, Linux x64 and arm64 with musl, and Windows x64 (MSVC).
+- The package does not require Rust, a C/C++ compiler, `node-gyp`, or an
+  install-time binary downloader.
 
-The native binding is pinned to the reviewed Legible Git revision
+Supported native targets are:
+
+| Platform            | Target                       |
+| ------------------- | ---------------------------- |
+| macOS x64           | `x86_64-apple-darwin`        |
+| macOS arm64         | `aarch64-apple-darwin`       |
+| Linux x64 (glibc)   | `x86_64-unknown-linux-gnu`   |
+| Linux arm64 (glibc) | `aarch64-unknown-linux-gnu`  |
+| Linux x64 (musl)    | `x86_64-unknown-linux-musl`  |
+| Linux arm64 (musl)  | `aarch64-unknown-linux-musl` |
+| Windows x64 (MSVC)  | `x86_64-pc-windows-msvc`     |
+
+The current binding uses Legible revision
 [`899356a2540863898b2c9fe639241da606889256`](https://github.com/ryanfowler/legible/tree/899356a2540863898b2c9fe639241da606889256).
-This is a later revision than the design snapshot and includes the upstream
-fix that makes retained extracted pages sendable for the planned async API.
-The revision is recorded directly in `Cargo.toml` and `Cargo.lock` for reproducible builds.
+The revision is pinned in `Cargo.toml` and `Cargo.lock`.
 
-# Usage
-
-1. **Clone** the repository.
-2. Run `pnpm install` to install dependencies.
-
-## Install this package
+## Installation
 
 ```bash
-pnpm add @ryanfowler/legible
+npm install @ryanfowler/legible
+# or: pnpm add @ryanfowler/legible
 ```
 
-## API
+## Quick start
 
-`extract(html, options?)` performs synchronous extraction and returns an
-`ExtractedPage`. The page renders Markdown, text, and canonical HTML lazily.
-For CPU-heavy documents, use `extractAsync`; it runs extraction in napi-rs's
-libuv worker pool without Tokio:
+### Synchronous extraction
+
+Use `extract` for small documents, scripts, CLIs, and code that already runs in
+a Worker Thread. It runs on the calling thread.
+
+```ts
+import { extract } from '@ryanfowler/legible'
+
+const html = '<main><h1>An article</h1><p>Useful content.</p></main>'
+const page = extract(html, { url: 'https://example.com/article' })
+
+console.log(page.metadata.title)
+console.log(page.markdown())
+```
+
+The returned `ExtractedPage` keeps the native semantic representation. Its
+`markdown()`, `text()`, and `html()` methods render only when called. The
+`metadata`, `metrics`, diagnostics, and structured-data getters return fresh
+JavaScript values.
+
+### Asynchronous extraction
+
+Use `extractAsync` for CPU-heavy documents in a server or other event-loop
+sensitive application. It runs extraction in napi-rs's libuv worker pool.
 
 ```ts
 import { extractAsync } from '@ryanfowler/legible'
 
 const html = '<main><h1>An article</h1><p>Useful content.</p></main>'
-const page = await extractAsync(html, { url: 'https://example.com/article' })
+const page = await extractAsync(html, {
+  url: 'https://example.com/article',
+})
+
 console.log(page.markdown())
 ```
 
-`new Extractor(options?)` creates an immutable configuration that can be reused:
+`extractAsync` does not use Tokio. It is CPU work scheduled through Node's
+worker pool, so cap concurrent extractions in high-throughput services. Use
+Worker Threads when extraction must be isolated from other libuv worker-pool
+work.
+
+An `AbortSignal` can cancel a task while it is queued. It cannot interrupt the
+native callback after extraction starts.
+
+```ts
+const html = '<main><h1>An article</h1><p>Useful content.</p></main>'
+const controller = new AbortController()
+const pending = extractAsync(html, { signal: controller.signal })
+controller.abort() // Cancels only if the native task has not started.
+try {
+  await pending
+} catch (error) {
+  if (!(error instanceof Error) || error.name !== 'AbortError') throw error
+}
+```
+
+### Fetching HTML
+
+This package extracts supplied HTML. It does not fetch pages, follow
+redirects, or execute JavaScript. Fetch the page in the application and pass
+the final response URL so relative links and media resolve correctly.
+
+```ts
+import { extractAsync } from '@ryanfowler/legible'
+
+const requestedUrl = 'https://example.com/article'
+const response = await fetch(requestedUrl)
+if (!response.ok) throw new Error(`HTTP ${response.status}`)
+
+const page = await extractAsync(await response.text(), {
+  url: response.url,
+})
+console.log(page.markdown())
+```
+
+For a JavaScript-rendered page, use a browser tool such as Playwright in the
+application, then pass its serialized HTML and URL to this package. Playwright
+is not a dependency of `@ryanfowler/legible`.
+
+## Reusable extractors
+
+`Extractor` builds an immutable configuration once. Call-level options contain
+only the source URL (and, for async calls, an `AbortSignal`).
 
 ```ts
 import { Extractor } from '@ryanfowler/legible'
 
-const extractor = new Extractor({
-  parseBudget: { maxInputBytes: 5_000_000, maxNodes: 100_000 },
-})
 const html = '<main><h1>An article</h1><p>Useful content.</p></main>'
-const page = await extractor.extractAsync(html, { url: 'https://example.com/article' })
+const extractor = new Extractor({
+  structuredData: true,
+  diagnostics: false,
+  parseBudget: {
+    maxInputBytes: 5_000_000,
+    maxNodes: 100_000,
+  },
+})
+
+const page = await extractor.extractAsync(html, {
+  url: 'https://example.com/article',
+})
 ```
 
-`signal` accepts an `AbortSignal`. It can cancel a queued task. It cannot
-interrupt extraction after native computation starts. Async extraction shares
-Node's libuv worker pool, so applications should cap concurrent extractions.
-Use Worker Threads when stronger CPU-pool isolation is needed.
+The one-shot functions accept the same extractor options together with `url`:
 
-The package extracts supplied HTML only. It does not fetch pages or execute
-JavaScript. Fetch HTML separately and pass the final response URL as `url`.
+```ts
+const html = '<article id="main-article" class="article-body"><h1>An article</h1><p>Useful content.</p></article>'
+const page = extract(html, {
+  contentHint: { type: 'tag', value: 'article' },
+  url: 'https://example.com/article',
+})
+```
 
-## Usage
+## Options
 
-### Build
+All numeric limits use JavaScript `number` values. They must be non-negative,
+finite integers no greater than `Number.MAX_SAFE_INTEGER`. Zero means no
+caller-configured limit, following Legible's behavior.
 
-After `pnpm build` command, you can see `legible.[darwin|win32|linux].node` file in project root. This is the native addon built from [lib.rs](./src/lib.rs).
+Unless specified otherwise, `structuredData` defaults to `true`.
+`diagnostics`, `metadataDiagnostics`, and `retainStructuredData` default to
+`false`. `contentHint` and `contentRoot` are unset by default.
 
-### Test
+### Markdown
 
-With [ava](https://github.com/avajs/ava), run `pnpm test` to testing native addon. You can also switch to another testing framework if you want.
+`page.markdown(options?)` supports:
 
-### CI
+| Option         | Default     | Description                                               |
+| -------------- | ----------- | --------------------------------------------------------- |
+| `links`        | `true`      | Render links. Set to `false` to keep link text only.      |
+| `images`       | `true`      | Render images. Set to `false` to omit them.               |
+| `maxLineWidth` | no wrapping | Preferred prose source-line width. `0` disables wrapping. |
 
-With GitHub Actions, each commit and pull request is built and tested automatically across every configured native target on Node.js 22 and 24. A non-blocking Linux x64 check also tests Node.js 26 for forward compatibility.
+```ts
+const markdown = page.markdown({
+  links: false,
+  images: false,
+  maxLineWidth: 100,
+})
+```
 
-### Release
+### Content selectors
 
-Release native package is very difficult in old days. Native packages may ask developers who use it to install `build toolchain` like `gcc/llvm`, `node-gyp` or something more.
+`contentHint` adds evidence while normal quality checks remain active.
+`contentRoot` selects the first matching element as the exact extraction root
+and fails if it is missing. Selectors are typed; arbitrary CSS selectors are
+not accepted.
 
-With `GitHub actions`, we can easily prebuild a `binary` for major platforms. And with `N-API`, we should never be afraid of **ABI Compatible**.
+```ts
+const page = extract(html, {
+  contentHint: { type: 'class', value: 'article-body' },
+  contentRoot: { type: 'id', value: 'main-article' },
+})
 
-The other problem is how to deliver prebuild `binary` to users. Downloading it in `postinstall` script is a common way that most packages do it right now. The problem with this solution is it introduced many other packages to download binary that has not been used by `runtime codes`. The other problem is some users may not easily download the binary from `GitHub/CDN` if they are behind a private network (But in most cases, they have a private NPM mirror).
+// Supported tag values: 'article', 'main', 'section', and 'div'.
+const byTag = extract(html, {
+  contentRoot: { type: 'tag', value: 'article' },
+})
+```
 
-In this package, we choose a better way to solve this problem. We release different `npm packages` for different platforms. And add it to `optionalDependencies` before releasing the `Major` package to npm.
+An ID must not be empty. A class must be one class token and must not contain
+whitespace. The `url` option must be an absolute URL when supplied.
 
-`NPM` will choose which native package should download from `registry` automatically. You can see [npm](./npm) dir for details. And you can also run `pnpm add @ryanfowler/legible` to use the published package.
+### Resource budgets for untrusted input
 
-## Develop requirements
+Legible does not impose a wrapper-specific default budget. Set an application
+policy when the input is untrusted. The following is an example policy, not a
+package default or a universal recommendation:
 
-- Install the latest `Rust`
-- Install `Node.js@22+` which is supported by this package
-- Run `corepack enable`
+```ts
+const extractor = new Extractor({
+  parseBudget: {
+    maxInputBytes: 5_000_000,
+    maxNodes: 100_000,
+    maxElements: 75_000,
+    maxTotalAttributes: 250_000,
+    maxAttributesPerElement: 100,
+    maxTextBytes: 4_000_000,
+    maxDepth: 256,
+    maxJsonLdBytes: 1_000_000,
+    maxJsonLdItems: 10_000,
+    maxJsonLdDepth: 128,
+  },
+})
+```
 
-## Test in local
+The budget fields are `maxInputBytes`, `maxNodes`, `maxElements`,
+`maxTotalAttributes`, `maxAttributesPerElement`, `maxTextBytes`, `maxDepth`,
+`maxJsonLdBytes`, `maxJsonLdItems`, and `maxJsonLdDepth`. A zero
+`maxJsonLdDepth` uses Legible's internal safety cap. A non-zero value above that
+cap is limited to the same internal cap.
 
-- pnpm
-- pnpm build
-- pnpm test
+### Structured data
 
-And you will see:
+`structuredData` controls whether JSON-LD participates in extraction and
+metadata decisions. `retainStructuredData` independently controls whether
+parsed schema.org items remain available on the result:
+
+```ts
+const html = '<main><h1>An article</h1><p>Useful content.</p></main>'
+const page = extract(html, {
+  structuredData: true,
+  retainStructuredData: true,
+})
+
+// [] means retention was enabled but no items were retained.
+// null means retention was disabled.
+console.log(page.structuredData)
+```
+
+Retained items are JavaScript values (`unknown[]`), not JSON strings.
+
+### Diagnostics
+
+Diagnostics are opt-in because they retain and convert additional detail:
+
+```ts
+const html = '<main><h1>An article</h1><p>Useful content.</p></main>'
+const page = extract(html, {
+  diagnostics: true,
+  metadataDiagnostics: true,
+})
+
+console.log(page.diagnostics?.selectedStrategy)
+console.log(page.diagnostics?.attempts)
+console.log(page.metadataDiagnostics?.title.selected)
+```
+
+With the flags disabled, the corresponding getters return `null`. Extraction
+diagnostics describe the selected strategy, attempts, roots, source/result
+metrics, quality, semantic coverage, cleanup, normalization, representation,
+and acceptance. Metadata diagnostics describe selected and alternative values,
+provenance sources, and confidence. Diagnostic enum values are camelCase
+strings; resource-limit names use their stable snake_case names. Optional
+values are `null`.
+
+## Result API
+
+`ExtractedPage` cannot be constructed directly. It exposes:
+
+- `metadata`: `title`, `description`, `authors`, `siteName`, `canonicalUrl`,
+  `image`, `favicon`, `publishedTime`, `modifiedTime`, `language`, `direction`,
+  `section`, and `tags`. Missing scalar values are `null`; list values are
+  always arrays.
+- `metrics`: word count, text and link lengths, link density, paragraph,
+  heading, list, code, table, figure, image, footnote, math, and structured
+  block counts, plus text-character and contextual-structure measurements.
+- `diagnostics`: extraction decision details or `null`.
+- `metadataDiagnostics`: metadata provenance details or `null`.
+- `structuredData`: retained JSON-LD items or `null`.
+- `markdown(options?)`: canonical Markdown.
+- `text()`: normalized plain text.
+- `html()`: canonical semantic HTML.
+
+See [`index.d.ts`](./index.d.ts) for the complete TypeScript declarations,
+including every diagnostic record and string union.
+
+The canonical semantic HTML is safe-by-construction output from the pinned
+Legible revision, not arbitrary source markup. Legible is not an
+application-wide Content Security Policy. If an application transforms or
+combines this output with other untrusted HTML, that rendering pipeline still
+needs its own security controls. Markdown contains no raw HTML and filters
+unsupported destinations according to the canonical representation rules.
+
+## Errors
+
+Domain failures throw or reject with an `Error` whose `name` is
+`LegibleError` and whose stable `code` identifies the failure. Limit errors
+also include `resource`, `limit`, and, when supplied by Legible, `observed`.
+Argument-validation errors (for example, a negative budget, invalid selector,
+or invalid Markdown width) are ordinary argument errors instead.
+
+The domain codes are:
+
+- `ERR_LEGIBLE_INVALID_URL`
+- `ERR_LEGIBLE_NO_BODY`
+- `ERR_LEGIBLE_NO_CONTENT`
+- `ERR_LEGIBLE_CONTENT_ROOT_NOT_FOUND`
+- `ERR_LEGIBLE_TOO_MANY_ELEMENTS`
+- `ERR_LEGIBLE_RESOURCE_LIMIT`
+- `ERR_LEGIBLE_PARSE`
+- `ERR_LEGIBLE_BINDING_INCOMPATIBLE`
+
+```ts
+const html = '<main><h1>An article</h1><p>Useful content.</p></main>'
+const url = 'https://example.com/article'
+try {
+  const page = await extractAsync(html, { url })
+  console.log(page.markdown())
+} catch (error) {
+  if (error instanceof Error && 'code' in error && error.code === 'ERR_LEGIBLE_NO_CONTENT') {
+    // The document was valid, but no relevant content was found.
+  } else {
+    throw error
+  }
+}
+```
+
+Do not identify an error by parsing its human-readable `message`.
+
+## Development
+
+Requirements are Rust, Node.js 22 or newer, and pnpm. Corepack can enable the
+pinned package manager:
 
 ```bash
-$ ava --verbose
-
-  ✔ sync function from native code
-  ─
-
-  1 test passed
-✨  Done in 1.12s.
+corepack enable
+pnpm install
+pnpm build
+pnpm test
+pnpm lint
+cargo test
 ```
 
-## Benchmarks
+Run `pnpm bench` for informational Node benchmarks and `pnpm bench:rust` for a
+direct Rust comparison. `pnpm bench:memory` exercises result creation and
+teardown; it reports trends and does not enforce a fixed memory limit. Set
+`BENCH_TIME_MS`, `BENCH_WARMUP_MS`, or `BENCH_ITERATIONS` to tune the Node
+benchmark. Set `MEMORY_CYCLES` or `MEMORY_ITERATIONS` to tune the memory
+utility.
 
-The benchmark suite uses the representative fixtures in `benchmark/fixtures`:
-small and medium articles, long-form and noisy DOMs, code-heavy and table-heavy
-pages, and JSON-LD-heavy pages. It reports extraction separately from each lazy
-renderer, combined rendering, asynchronous extraction, async concurrency, and
-metadata/diagnostic conversion.
+The release and upstream-update procedure is documented in
+[`docs/development.md`](https://github.com/ryanfowler/legible-node/blob/main/docs/development.md).
+Releases use napi-rs's root
+package plus one optional package per supported platform. Native artifacts are
+validated and install-tested before platform packages are published; the root
+package is published last.
 
-```bash
-pnpm bench
-```
+## License
 
-The default task duration is 250 ms with a 50 ms warmup. Set
-`BENCH_TIME_MS`, `BENCH_WARMUP_MS`, or `BENCH_ITERATIONS` to adjust a run. The
-benchmark is informational and has no unstable performance threshold.
-
-For a direct Rust comparison using the same fixtures, run the optional native
-benchmark. Its `mean_ms` rows correspond to the extraction and render-only rows
-from the Node benchmark:
-
-```bash
-pnpm bench:rust
-```
-
-To exercise result creation and teardown, run the memory stress utility. Start
-it with `--expose-gc` (the script does this for `pnpm bench:memory`). It reports
-post-GC RSS, heap, external memory, and the RSS delta for each cycle. RSS also
-includes allocator and runtime state, so use the trend to investigate a leak;
-this utility does not fail on a fixed memory limit.
-
-```bash
-pnpm bench:memory
-MEMORY_CYCLES=10 MEMORY_ITERATIONS=250 pnpm bench:memory
-```
-
-## Release package
-
-Releases use napi-rs's root package plus one optional package per configured
-platform. The workflow validates every binary, packs and install-tests the root
-and host package, publishes platform packages first, verifies them in the npm
-registry, and publishes the root package last. Consumers need no Rust compiler,
-`node-gyp`, or post-install binary downloader.
-
-Set `NPM_TOKEN` in the GitHub repository settings before the first release.
-The workflow enables npm provenance and uses the `latest` tag for stable
-versions and `next` for prereleases.
-
-Create a version commit and push it to `main`:
-
-```bash
-npm version [<newversion> | major | minor | patch | premajor | preminor | prepatch | prerelease --preid=<prerelease-id>]
-git push
-```
-
-A missing, duplicate, unexpected, or mismatched artifact stops the workflow
-before any registry write. The root package cannot publish until every
-platform package is visible in the registry. Do not rerun a release with
-rebuilt binaries after a partial publish because npm versions are immutable.
-Instead, inventory the published `@ryanfowler/legible-<platform>` packages,
-rerun the unchanged artifacts for missing packages only, and publish the root
-package only after registry verification passes.
-
-The workflow also verifies registry `dist` metadata and npm provenance after
-publication. Do not run `npm publish` manually; it can publish platform
-packages through the package lifecycle, but it cannot provide the complete
-release workflow and recovery checks.
+`@ryanfowler/legible` is licensed under [Apache-2.0](./LICENSE).
