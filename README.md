@@ -70,7 +70,7 @@ With [ava](https://github.com/avajs/ava), run `pnpm test` to testing native addo
 
 ### CI
 
-With GitHub Actions, each commit and pull request will be built and tested automatically across the configured native targets on Node.js 22.
+With GitHub Actions, each commit and pull request is built and tested automatically across every configured native target on Node.js 22 and 24. A non-blocking Linux x64 check also tests Node.js 26 for forward compatibility.
 
 ### Release
 

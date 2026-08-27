@@ -165,6 +165,7 @@ jobs:
             architecture: arm64
         node:
           - '22'
+          - '24'
     runs-on: ${{ matrix.settings.host }}
     steps:
       - uses: actions/checkout@v7
@@ -202,6 +203,7 @@ jobs:
           - aarch64-unknown-linux-musl
         node:
           - '22'
+          - '24'
     runs-on: ${{ contains(matrix.target, 'aarch64') && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v7
@@ -256,6 +258,33 @@ jobs:
           name: test-binding
           options: '-v ${{ steps.docker.outputs.PNPM_STORE_PATH }}:${{ steps.docker.outputs.PNPM_STORE_PATH }} -v ${{ github.workspace }}:${{ github.workspace }} -w ${{ github.workspace }} --platform ${{ steps.docker.outputs.PLATFORM }}'
           args: npm run test
+  # Node 26 is a forward-compatibility check. It does not gate releases because
+  # the package support contract currently covers Node 22 and Node 24.
+  test-node26-forward:
+    name: Forward compatibility - linux-x64-gnu - node@26
+    continue-on-error: true
+    needs:
+      - build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: setup pnpm
+        uses: pnpm/action-setup@v6
+      - name: Setup node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install
+      - name: Download artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: bindings-x86_64-unknown-linux-gnu
+          path: .
+      - name: Test binding
+        run: pnpm test
+
   publish:
     name: Publish
     runs-on: ubuntu-latest
