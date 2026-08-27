@@ -1,0 +1,21 @@
+<!doctype html>
+<html>
+  <head><title>How reliable systems are built</title></head>
+  <body>
+    <header><nav>Home Documentation Community Sign in</nav></header>
+    <main>
+      <article>
+        <h1>How reliable systems are built</h1>
+        <p>Reliable software starts with a small set of clear invariants. Teams that write those invariants down can make changes without losing track of the behavior users depend on.</p>
+        <p>Testing is most useful when it describes the boundary of a system. A focused fixture can explain a parser decision more clearly than a large integration test with many unrelated inputs.</p>
+        <h2>Measure the important path</h2>
+        <p>Performance work should separate input processing from output conversion. This makes a regression easier to locate and keeps measurements useful when the implementation changes.</p>
+        <ul><li>Keep the native representation compact.</li><li>Render only the format a caller requests.</li><li>Use realistic documents in benchmarks.</li></ul>
+        <p>These practices also make operational limits easier to choose. An application can set a policy for untrusted input while preserving sensible library defaults for trusted documents.</p>
+        <h2>Review changes with evidence</h2>
+        <p>Small repeatable measurements help reviewers see whether an optimization improves the whole request or only one narrow operation. The result is a system that is both faster and easier to maintain.</p>
+      </article>
+    </main>
+    <footer>Copyright and privacy links</footer>
+  </body>
+</html>

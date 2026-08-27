@@ -108,6 +108,41 @@ $ ava --verbose
 ✨  Done in 1.12s.
 ```
 
+## Benchmarks
+
+The benchmark suite uses the representative fixtures in `benchmark/fixtures`:
+small and medium articles, long-form and noisy DOMs, code-heavy and table-heavy
+pages, and JSON-LD-heavy pages. It reports extraction separately from each lazy
+renderer, combined rendering, asynchronous extraction, async concurrency, and
+metadata/diagnostic conversion.
+
+```bash
+pnpm bench
+```
+
+The default task duration is 250 ms with a 50 ms warmup. Set
+`BENCH_TIME_MS`, `BENCH_WARMUP_MS`, or `BENCH_ITERATIONS` to adjust a run. The
+benchmark is informational and has no unstable performance threshold.
+
+For a direct Rust comparison using the same fixtures, run the optional native
+benchmark. Its `mean_ms` rows correspond to the extraction and render-only rows
+from the Node benchmark:
+
+```bash
+pnpm bench:rust
+```
+
+To exercise result creation and teardown, run the memory stress utility. Start
+it with `--expose-gc` (the script does this for `pnpm bench:memory`). It reports
+post-GC RSS, heap, external memory, and the RSS delta for each cycle. RSS also
+includes allocator and runtime state, so use the trend to investigate a leak;
+this utility does not fail on a fixed memory limit.
+
+```bash
+pnpm bench:memory
+MEMORY_CYCLES=10 MEMORY_ITERATIONS=250 pnpm bench:memory
+```
+
 ## Release package
 
 Ensure you have set your **NPM_TOKEN** in the `GitHub` project setting.

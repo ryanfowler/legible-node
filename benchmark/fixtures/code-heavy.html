@@ -1,0 +1,29 @@
+<!doctype html>
+<html>
+  <head><title>Building a small command</title></head>
+  <body>
+    <main>
+      <article>
+        <h1>Building a small command</h1>
+        <p>This example shows the complete path from a source file to a useful result.</p>
+        <h2>Implementation</h2>
+        <pre><code>export function readConfig(path: string): Config {
+  const source = readFileSync(path, 'utf8')
+  return JSON.parse(source) as Config
+}
+
+export async function run(path: string): Promise<number> {
+  const config = readConfig(path)
+  return execute(config)
+}</code></pre>
+        <p>The implementation keeps parsing separate from execution. That separation makes both parts simple to test and easy to replace.</p>
+        <h2>Command output</h2>
+        <pre><code>$ legible article.html
+# Building a small command
+
+The command completed successfully.</code></pre>
+        <p>Logs should contain enough context to diagnose a failure without exposing private input.</p>
+      </article>
+    </main>
+  </body>
+</html>

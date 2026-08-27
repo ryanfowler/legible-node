@@ -1,0 +1,7 @@
+small-news
+medium-article
+large-long-form
+code-heavy
+table-heavy
+large-noisy-dom
+json-ld-heavy
