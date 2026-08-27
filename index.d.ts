@@ -36,6 +36,7 @@ export interface LegibleError extends Error {
  * cache rendered strings or converted result objects.
  */
 export declare class ExtractedPage {
+  private constructor()
   /** Returns a fresh JavaScript-owned metadata value. */
   get metadata(): Metadata
   /** Returns all public content measurements in one conversion. */
@@ -52,7 +53,6 @@ export declare class ExtractedPage {
   text(): string
   /** Renders canonical semantic HTML lazily. */
   html(): string
-  private constructor()
 }
 
 /** A reusable immutable extraction configuration. */
