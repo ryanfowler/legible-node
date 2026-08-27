@@ -61,6 +61,8 @@ export declare class Extractor {
   constructor(options?: ExtractorOptions | null | undefined)
   /** Extracts a document using this extractor's immutable configuration. */
   extract(html: string, options?: ExtractCallOptions | undefined | null): ExtractedPage
+  /** Extracts a document on napi-rs's libuv worker pool. */
+  extractAsync(html: string, options?: ExtractAsyncCallOptions | undefined | null): Promise<ExtractedPage>
 }
 
 /** A positive exception that allowed an attempt to be accepted. */
@@ -130,6 +132,30 @@ export type ContentTag =  'article'|
 
 /** Extracts one document using a one-shot configuration. */
 export declare function extract(html: string, options?: ExtractOptions | null | undefined): ExtractedPage
+
+/** Extracts one document on napi-rs's libuv worker pool. */
+export declare function extractAsync(html: string, options?: ExtractAsyncOptions | null | undefined): Promise<ExtractedPage>
+
+/** Options that apply to one asynchronous extraction call. */
+export interface ExtractAsyncCallOptions {
+  /** Absolute source/base URL used to resolve relative URLs. */
+  url?: string
+  /** Cancels the task if it has not started running yet. */
+  signal?: AbortSignal | null | undefined
+}
+
+/** Options for asynchronous one-shot extraction. */
+export interface ExtractAsyncOptions {
+  parseBudget?: ParseBudget
+  structuredData?: boolean
+  diagnostics?: boolean
+  metadataDiagnostics?: boolean
+  retainStructuredData?: boolean
+  contentHint?: ContentSelector
+  contentRoot?: ContentSelector
+  url?: string
+  signal?: AbortSignal | null | undefined
+}
 
 /** Options that apply to one extraction call on a reusable extractor. */
 export interface ExtractCallOptions {

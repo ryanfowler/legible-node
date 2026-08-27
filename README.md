@@ -23,6 +23,41 @@ The revision is recorded directly in `Cargo.toml` and `Cargo.lock` for reproduci
 pnpm add @ryanfowler/legible
 ```
 
+## API
+
+`extract(html, options?)` performs synchronous extraction and returns an
+`ExtractedPage`. The page renders Markdown, text, and canonical HTML lazily.
+For CPU-heavy documents, use `extractAsync`; it runs extraction in napi-rs's
+libuv worker pool without Tokio:
+
+```ts
+import { extractAsync } from '@ryanfowler/legible'
+
+const html = '<main><h1>An article</h1><p>Useful content.</p></main>'
+const page = await extractAsync(html, { url: 'https://example.com/article' })
+console.log(page.markdown())
+```
+
+`new Extractor(options?)` creates an immutable configuration that can be reused:
+
+```ts
+import { Extractor } from '@ryanfowler/legible'
+
+const extractor = new Extractor({
+  parseBudget: { maxInputBytes: 5_000_000, maxNodes: 100_000 },
+})
+const html = '<main><h1>An article</h1><p>Useful content.</p></main>'
+const page = await extractor.extractAsync(html, { url: 'https://example.com/article' })
+```
+
+`signal` accepts an `AbortSignal`. It can cancel a queued task. It cannot
+interrupt extraction after native computation starts. Async extraction shares
+Node's libuv worker pool, so applications should cap concurrent extractions.
+Use Worker Threads when stronger CPU-pool isolation is needed.
+
+The package extracts supplied HTML only. It does not fetch pages or execute
+JavaScript. Fetch HTML separately and pass the final response URL as `url`.
+
 ## Usage
 
 ### Build

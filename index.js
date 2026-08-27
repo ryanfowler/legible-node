@@ -708,6 +708,7 @@ module.exports.CandidateSource = nativeBinding.CandidateSource
 module.exports.CleanupActionKind = nativeBinding.CleanupActionKind
 module.exports.ContentTag = nativeBinding.ContentTag
 module.exports.extract = nativeBinding.extract
+module.exports.extractAsync = nativeBinding.extractAsync
 module.exports.ExtractionStrategy = nativeBinding.ExtractionStrategy
 module.exports.MetadataSource = nativeBinding.MetadataSource
 module.exports.RootSelectionReason = nativeBinding.RootSelectionReason

@@ -13,6 +13,7 @@ mod numeric;
 #[allow(dead_code)]
 mod options;
 mod page;
+mod task;
 
 pub use extractor::Extractor;
 pub use page::ExtractedPage;
