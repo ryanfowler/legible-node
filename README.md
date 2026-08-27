@@ -359,8 +359,11 @@ teardown; it reports trends and does not enforce a fixed memory limit. Set
 benchmark. Set `MEMORY_CYCLES` or `MEMORY_ITERATIONS` to tune the memory
 utility.
 
-The release and upstream-update procedure is documented in
-[`docs/development.md`](https://github.com/ryanfowler/legible-node/blob/main/docs/development.md).
+Before a release, run `pnpm verify:release` to check the generated loader,
+package metadata, pinned upstream revision, and complete target matrix. Use an
+`rc` prerelease on the `next` tag to validate a clean install before publishing
+`0.1.0` on `latest`. The release and upstream-update procedure is documented
+in [`docs/development.md`](https://github.com/ryanfowler/legible-node/blob/main/docs/development.md).
 Releases use napi-rs's root
 package plus one optional package per supported platform. Native artifacts are
 validated and install-tested before platform packages are published; the root

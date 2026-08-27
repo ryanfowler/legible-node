@@ -93,11 +93,18 @@ Before creating a release commit:
 3. Confirm `package.json` and the release version agree.
 4. Confirm `napi.targets` lists only runtime-tested platforms.
 5. Run the complete validation commands above.
-6. Create the version commit with `npm version <newversion>` (or an
+6. Run `pnpm verify:release` to validate the package manifest, generated
+   loader, pinned upstream revision, and target matrix.
+7. Create the version commit with `npm version <newversion>` (or an
    equivalent version command). The release commit subject must be exactly
    `v<version>` or `<version>` because CI uses that subject to recognize a
    release.
-7. Push the commit to `main` with `git push origin main`.
+8. Push the commit to `main` with `git push origin main`.
+
+The release workflow first runs
+`pnpm verify:release -- --require-release-commit`. This check is local and
+does not contact npm. It rejects a release if the generated loader, package
+metadata, pinned upstream revision, or target matrix is inconsistent.
 
 The release workflow then performs these steps:
 
@@ -118,6 +125,26 @@ The release workflow then performs these steps:
 The root package must never be published before all platform packages pass
 registry verification. Do not run `npm publish` manually as a substitute for
 this workflow.
+
+### First prerelease and stable release
+
+Use a prerelease to validate the public package graph before the first stable
+release. From a clean `main` checkout, run the complete local checks, then
+update the version without creating a commit with
+`npm version --ignore-scripts --no-git-tag-version 0.1.0-rc.0` (or use the next
+unused prerelease version). Run `pnpm build`, `pnpm test`, and
+`pnpm verify:release`, then commit the version and generated loader with the
+subject `v0.1.0-rc.0`. Push the release commit to `main`, and install the
+`next` package from a clean project on each blocking platform.
+Check CommonJS, ESM, async extraction, and a clean TypeScript compilation.
+
+If a platform package or loader is wrong, publish a new prerelease version;
+npm versions are immutable. Do not reuse the broken version. When the full matrix passes, update the version with
+`npm version --ignore-scripts --no-git-tag-version 0.1.0`, run `pnpm build`,
+`pnpm test`, and `pnpm verify:release` again, then commit the generated loader
+with subject `v0.1.0` and push that release commit. The workflow publishes the `latest` tag only after all
+platform packages pass their exact-artifact, registry-integrity, and
+provenance checks.
 
 ## Recovery after a partial publication
 
