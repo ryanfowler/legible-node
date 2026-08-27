@@ -128,6 +128,10 @@ jobs:
       - name: Build
         run: ${{ matrix.settings.build }}
         shell: bash
+      - name: Verify generated declarations
+        run: |
+          pnpm test:dts
+          git diff --exit-code -- index.d.ts
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         if: ${{ !startsWith(matrix.settings.target, 'wasm32-') }}

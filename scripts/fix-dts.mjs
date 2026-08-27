@@ -16,11 +16,20 @@ if (classEnd === -1) {
 
 const classDeclaration = declaration.slice(classStart, classEnd)
 if (/\bprivate\s+constructor\s*\(\)/.test(classDeclaration)) {
+  // The patch is intentionally idempotent. This also supports running the
+  // post-build hook more than once while debugging a generated declaration.
   process.exit(0)
 }
-if (/\bconstructor\s*\(/.test(classDeclaration)) {
+if (/\b(?:public\s+)?constructor\s*\(/.test(classDeclaration)) {
   throw new Error('Generated ExtractedPage declaration unexpectedly contains a public constructor')
 }
 
-const patchedDeclaration = `${declaration.slice(0, classEnd)}\n  private constructor()${declaration.slice(classEnd)}`
+// Keep the constructor declaration at the start of the class. This makes the
+// generated API easy to inspect and ensures the patch only changes the one
+// declaration that napi-rs cannot currently mark as non-constructible.
+const openingBrace = declaration.indexOf('{', classStart)
+if (openingBrace === -1 || openingBrace > classEnd) {
+  throw new Error('Could not locate the opening brace of ExtractedPage')
+}
+const patchedDeclaration = `${declaration.slice(0, openingBrace + 1)}\n  private constructor()${declaration.slice(openingBrace + 1)}`
 writeFileSync(declarationPath, patchedDeclaration)
