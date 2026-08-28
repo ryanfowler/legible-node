@@ -13,6 +13,8 @@ permissions:
       - main
     tags-ignore:
       - '**'
+    # Release commits must include a non-ignored file change. An empty release
+    # marker commit is filtered out by these push path rules.
     paths-ignore:
       - '**/*.md'
       - LICENSE
