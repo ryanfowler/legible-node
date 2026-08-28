@@ -199,12 +199,14 @@ platform packages:
    pnpm verify:artifacts
    pnpm napi pre-publish --tag-style npm --root-publisher npm \
      --skip-optional-publish --no-gh-release
-   pnpm verify:package -- --include-optional
+   node scripts/verify-package.mjs --include-optional
    ```
 
    The `napi pre-publish` command above prepares the root
    `optionalDependencies` and target manifests without publishing. The
-   `--include-optional` package check confirms that the root can select a
+   generated root dependencies are not in `pnpm-lock.yaml`, so run the
+   post-publish checks through `node` until the source manifest is restored.
+   The `--include-optional` package check confirms that the root can select a
    platform package. `pnpm artifacts` expects the original files in
    `artifacts/`; do not create replacement binaries for an immutable version.
 
@@ -224,7 +226,7 @@ platform packages:
 5. Run platform-only verification:
 
    ```bash
-   pnpm verify:registry --platforms-only --require-provenance --tag latest
+   node scripts/verify-registry.mjs --platforms-only --require-provenance --tag latest
    ```
 
 6. From the repository root, publish the root package only after that

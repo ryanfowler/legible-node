@@ -388,17 +388,25 @@ jobs:
           echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" >> ~/.npmrc
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+      # napi pre-publish adds the generated platform packages to the root
+      # manifest. Keep a copy so the working tree can be restored before the
+      # pnpm action runs its post-job dependency check.
+      - name: Save source root manifest
+        run: cp package.json "$RUNNER_TEMP/legible-root-package.json"
       - name: Publish platform packages
         if: needs.release-check.outputs.release == 'true'
         run: pnpm napi pre-publish --tag-style npm --root-publisher npm --no-gh-release
         env:
           NPM_CONFIG_TAG: ${{ needs.release-check.outputs.tag }}
+      # Run these scripts through node. After pre-publish, the generated
+      # optionalDependencies are intentionally not present in pnpm-lock.yaml,
+      # so invoking them through pnpm would trigger a frozen-lockfile failure.
       - name: Verify platform packages before publishing the root
         if: needs.release-check.outputs.release == 'true'
-        run: pnpm verify:registry --platforms-only --require-provenance --local-tarballs .release-tarballs
+        run: node scripts/verify-registry.mjs --platforms-only --require-provenance --local-tarballs .release-tarballs
       - name: Test the final root manifest and optional dependencies
         if: needs.release-check.outputs.release == 'true'
-        run: pnpm verify:package -- --include-optional --save-tarballs .release-tarballs
+        run: node scripts/verify-package.mjs --include-optional --save-tarballs .release-tarballs
       - name: Publish root package last
         if: needs.release-check.outputs.release == 'true'
         shell: bash
@@ -414,9 +422,12 @@ jobs:
           NPM_TAG: ${{ needs.release-check.outputs.tag }}
       - name: Verify the complete published package graph
         if: needs.release-check.outputs.release == 'true'
-        run: pnpm verify:registry --require-provenance --local-tarballs .release-tarballs
+        run: node scripts/verify-registry.mjs --require-provenance --local-tarballs .release-tarballs
         env:
           NPM_CONFIG_REGISTRY: https://registry.npmjs.org/
+      - name: Restore source root manifest
+        if: always()
+        run: cp "$RUNNER_TEMP/legible-root-package.json" package.json
       - name: Create GitHub release after registry verification
         if: needs.release-check.outputs.release == 'true'
         shell: bash
