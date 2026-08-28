@@ -41,6 +41,11 @@ jobs:
         with:
           toolchain: 1.88.0
 
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76 # v2.0.2
+        with:
+          bun-version: '1.4.0'
+
       - name: Resolve upstream revision
         id: revision
         env:
@@ -99,6 +104,7 @@ jobs:
           pnpm lint
           pnpm build
           pnpm test
+          pnpm test:bun
           # package.spec.ts packs and installs the host package tarball.
           pnpm exec ava __test__/package.spec.ts
           pnpm upstream:check
@@ -244,8 +250,9 @@ jobs:
           - Source: https://github.com/ryanfowler/legible/tree/$NEXT_SHA
 
           The validation job ran the Rust format, Rust test, lint, native build,
-          host packed-package smoke test, Node golden/integration tests,
-          declaration checks, and pinned-revision checks. Review the generated
+          host packed-package smoke test, Node golden/integration tests, Bun
+          native-binding smoke test, declaration checks, and pinned-revision
+          checks. Review the generated
           declaration/API diff and all non-exhaustive enum conversions before
           merging. This workflow creates a pull request only; it never merges
           or changes the primary/release branch directly.

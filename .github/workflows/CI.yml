@@ -261,8 +261,27 @@ jobs:
           name: test-binding
           options: '-v ${{ steps.docker.outputs.PNPM_STORE_PATH }}:${{ steps.docker.outputs.PNPM_STORE_PATH }} -v ${{ github.workspace }}:${{ github.workspace }} -w ${{ github.workspace }} --platform ${{ steps.docker.outputs.PLATFORM }}'
           args: npm run test
+  test-bun-binding:
+    name: Test native binding - bun@1.4
+    needs:
+      - build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76 # v2.0.2
+        with:
+          bun-version: '1.4.0'
+      - name: Download Linux x64 artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: bindings-x86_64-unknown-linux-gnu
+          path: .
+      - name: Test Bun binding
+        run: bun run test:bun
+
   # Node 26 is a forward-compatibility check. It does not gate releases because
-  # the package support contract currently covers Node 22 and Node 24.
+  # the package support contract currently covers Node 22, Node 24, and Bun 1.4+.
   test-node26-forward:
     name: Forward compatibility - linux-x64-gnu - node@26
     continue-on-error: true
@@ -331,6 +350,7 @@ jobs:
       - lint
       - test-macOS-windows-binding
       - test-linux-binding
+      - test-bun-binding
     permissions:
       contents: write
       id-token: write

@@ -1,7 +1,7 @@
 {
   "name": "@ryanfowler/legible",
   "version": "0.1.0",
-  "description": "Fast readable-content extraction for Node.js, powered by the Legible Rust crate",
+  "description": "Fast readable-content extraction for Node.js and Bun, powered by the Legible Rust crate",
   "main": "index.js",
   "types": "index.d.ts",
   "repository": {
@@ -15,7 +15,8 @@
     "N-API",
     "Rust",
     "node-addon",
-    "node-addon-api"
+    "node-addon-api",
+    "bun"
   ],
   "files": [
     "index.d.ts",
@@ -41,7 +42,8 @@
     "dtsHeaderFile": "types-header.d.ts"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=22",
+    "bun": ">=1.4.0"
   },
   "publishConfig": {
     "registry": "https://registry.npmjs.org/",
@@ -69,6 +71,7 @@
     "prepublishOnly": "napi prepublish -t npm --no-gh-release && node scripts/verify-registry.mjs --platforms-only",
     "test": "run-s test:types test:unit",
     "test:dts": "node scripts/verify-dts.mjs",
+    "test:bun": "bun __test__/bun-smoke.mjs",
     "test:types": "run-s test:dts test:types:ts",
     "test:types:ts": "tsc --noEmit -p __test__/options-tsconfig.json",
     "test:unit": "ava",

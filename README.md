@@ -1,7 +1,7 @@
 # `@ryanfowler/legible`
 
-Fast readable-content extraction for Node.js, powered by the [Legible Rust
-crate](https://github.com/ryanfowler/legible). This package is a thin
+Fast readable-content extraction for Node.js and Bun, powered by the [Legible
+Rust crate](https://github.com/ryanfowler/legible). This package is a thin
 Node-API binding built with napi-rs. Extraction remains in Rust; JavaScript
 receives a native-backed page that renders its semantic content lazily.
 
@@ -9,6 +9,8 @@ receives a native-backed page that renders its semantic content lazily.
 
 - Node.js 22 and 24 are supported in blocking CI checks. Node.js 26 has a
   non-blocking forward-compatibility check.
+- Bun 1.4.0 and newer are supported in a blocking Linux x64 native-binding
+  smoke test.
 - Prebuilt binaries are published for macOS x64 and arm64, Linux x64 and
   arm64 with glibc, Linux x64 and arm64 with musl, and Windows x64 (MSVC).
 - The package does not require Rust, a C/C++ compiler, `node-gyp`, or an
@@ -35,6 +37,7 @@ The revision is pinned in `Cargo.toml` and `Cargo.lock`.
 ```bash
 npm install @ryanfowler/legible
 # or: pnpm add @ryanfowler/legible
+# or: bun add @ryanfowler/legible
 ```
 
 ## Quick start
@@ -61,10 +64,10 @@ The returned `ExtractedPage` keeps the native semantic representation. Its
 `metadata`, `metrics`, diagnostics, and structured-data getters return fresh
 JavaScript values.
 
-`extract` does not use Tokio. It is CPU work scheduled through Node's
-worker pool, so cap concurrent extractions in high-throughput services. Use
-Worker Threads when extraction must be isolated from other libuv worker-pool
-work.
+`extract` does not use Tokio. It schedules CPU work asynchronously without
+blocking the calling JavaScript thread, so cap concurrent extractions in
+high-throughput services. On Node.js, use Worker Threads when extraction must
+be isolated from other libuv worker-pool work.
 
 An `AbortSignal` can cancel a task while it is queued. It cannot interrupt the
 native callback after extraction starts.
@@ -341,8 +344,9 @@ Do not identify an error by parsing its human-readable `message`.
 
 ## Development
 
-Requirements are Rust, Node.js 22 or newer, and pnpm. Corepack can enable the
-pinned package manager:
+Requirements are Rust, Node.js 22 or newer, and pnpm. Bun 1.4.0 or newer is
+required to run the Bun smoke test. Corepack can enable the pinned package
+manager:
 
 ```bash
 corepack enable

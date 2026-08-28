@@ -41,6 +41,7 @@ function validatePackageManifest(manifest) {
   if (typeof manifest.version !== 'string') fail('package version is missing')
   validateSemver(manifest.version)
   if (manifest.engines?.node !== '>=22') fail('Node engine must be >=22')
+  if (manifest.engines?.bun !== '>=1.4.0') fail('Bun engine must be >=1.4.0')
   if (manifest.license !== 'Apache-2.0') fail('license must be Apache-2.0')
   if (manifest.main !== 'index.js' || manifest.types !== 'index.d.ts') fail('root entry points are incomplete')
   if (!Array.isArray(manifest.files) || !manifest.files.includes('*.node')) {
