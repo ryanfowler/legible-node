@@ -9,6 +9,7 @@ import { extractSync } from '../index.js'
 const readme = readFileSync(new URL('../README.md', import.meta.url), 'utf8')
 const declarations = readFileSync(new URL('../index.d.ts', import.meta.url), 'utf8')
 const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as {
+  engines: { bun: string }
   napi: { targets: string[] }
 }
 const ci = readFileSync(new URL('../.github/workflows/CI.yml', import.meta.url), 'utf8')
@@ -94,6 +95,10 @@ test('README documents the supported public workflow', (t) => {
   t.true(readme.includes('does not fetch pages'))
   t.true(readme.includes('does not use Tokio'))
   t.true(readme.includes('example policy, not a'))
+  t.true(readme.includes('Bun 1.4.0 and newer'))
+  t.true(readme.includes('bun add @ryanfowler/legible'))
+  t.true(ci.includes('test-bun-binding'))
+  t.is(packageJson.engines.bun, '>=1.4.0')
   t.true(readme.includes('platform packages are published'))
 
   for (const target of packageJson.napi.targets) t.true(readme.includes(`\`${target}\``), target)
@@ -127,6 +132,7 @@ test('developer notes document the pinned revision and safe release order', (t) 
   t.true(upstreamUpdateWorkflow.includes('workflow_dispatch'))
   t.true(upstreamUpdateWorkflow.includes('cargo test --locked'))
   t.true(upstreamUpdateWorkflow.includes('pnpm test'))
+  t.true(upstreamUpdateWorkflow.includes('pnpm test:bun'))
   t.true(upstreamUpdateWorkflow.includes('pnpm exec ava __test__/package.spec.ts'))
   t.true(upstreamUpdateWorkflow.includes('git diff --cached --name-only'))
   t.true(upstreamUpdateWorkflow.includes('persist-credentials: false'))
@@ -160,5 +166,6 @@ test('developer notes document the pinned revision and safe release order', (t) 
   t.true(platformVerification > platformPublication)
   t.true(rootPublication > platformVerification)
   t.true(releaseScript.includes('requireReleaseCommit'))
+  t.true(releaseScript.includes('Bun engine must be >=1.4.0'))
   t.true(releaseScript.includes('consumer install hook'))
 })

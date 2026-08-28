@@ -88,6 +88,7 @@ pnpm lint
 cargo test
 pnpm build
 pnpm test
+pnpm test:bun
 ```
 
 `pnpm build` regenerates the native loader and TypeScript declarations. The
@@ -140,7 +141,8 @@ metadata, pinned upstream revision, or target matrix is inconsistent.
 The release workflow then performs these steps:
 
 1. Builds every configured target.
-2. Runs the host and cross-target tests on Node.js 22 and 24.
+2. Runs the host and cross-target tests on Node.js 22 and 24, plus the Bun
+   1.4.0 Linux x64 smoke test.
 3. Runs `napi create-npm-dirs` and `napi artifacts`.
 4. Runs `pnpm verify:artifacts`, which requires exactly one complete binary
    for every configured target.
@@ -239,8 +241,9 @@ version and release a new version.
 ## Support policy
 
 Advertise only targets that have a blocking runtime smoke test. Node.js 22 and
-24 are the supported CI versions. The package engine permits newer Node.js
-versions, but Node.js 26 is only a forward-compatibility check and is not part
-of the current support contract. Do not add Windows arm64, Bun,
-Deno, WASI, or another target to the support statement without a separate
-runtime test and an explicit documentation update.
+24, and Bun 1.4.0 or newer, are supported runtime versions. The package engine
+permits newer Node.js versions, but Node.js 26 is only a forward-compatibility
+check and is not part of the current support contract. Bun support is currently
+verified on Linux x64. Do not add Windows arm64, Deno, WASI, or another runtime
+or target to the support statement without a separate runtime test and an
+explicit documentation update.
