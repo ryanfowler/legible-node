@@ -3,7 +3,8 @@ env:
   DEBUG: napi:*
   APP_NAME: legible
   MACOSX_DEPLOYMENT_TARGET: '10.13'
-  CARGO_INCREMENTAL: '1'
+  # Release artifacts must be byte-for-byte stable when a failed publish is retried.
+  CARGO_INCREMENTAL: '0'
 permissions:
   contents: read
 'on':

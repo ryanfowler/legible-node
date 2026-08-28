@@ -1,5 +1,8 @@
 [target.x86_64-pc-windows-msvc]
-rustflags = ["-C", "target-feature=+crt-static"]
+# `/Brepro` removes the MSVC linker timestamp and makes the PDB signature
+# deterministic. This is required because release artifacts are checked
+# against packages already published to npm when a release is retried.
+rustflags = ["-C", "target-feature=+crt-static", "-C", "link-arg=/Brepro"]
 
 [target.i686-pc-windows-msvc]
-rustflags = ["-C", "target-feature=+crt-static"]
+rustflags = ["-C", "target-feature=+crt-static", "-C", "link-arg=/Brepro"]

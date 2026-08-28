@@ -138,6 +138,10 @@ The release workflow first runs
 does not contact npm. It rejects a release if the generated loader, package
 metadata, pinned upstream revision, or target matrix is inconsistent.
 
+Release builds disable incremental compilation. The MSVC linker also runs with
+`/Brepro`. These settings keep native artifacts byte-for-byte stable when a
+failed publication is retried.
+
 The release workflow then performs these steps:
 
 1. Builds every configured target.
