@@ -157,7 +157,7 @@ The release workflow then performs these steps:
    required npm provenance.
 8. Publishes the root package last.
 9. Verifies the complete optional-dependency graph and creates the GitHub
-   release.
+   release. Registry checks allow up to two minutes for npm propagation.
 
 The root package must never be published before all platform packages pass
 registry verification. Do not run `npm publish` manually as a substitute for

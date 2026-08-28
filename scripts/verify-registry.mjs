@@ -9,8 +9,9 @@ function parseArgs(argv) {
     registry: process.env.npm_config_registry ?? 'https://registry.npmjs.org/',
     platformsOnly: false,
     requireProvenance: false,
-    retries: 6,
-    delayMs: 5000,
+    // npm can take more than 30 seconds to expose a newly published package.
+    retries: 12,
+    delayMs: 10000,
     localTarballs: undefined,
     tag: undefined,
   }
@@ -111,8 +112,8 @@ export function verifyPublishedPackages({
   registry = 'https://registry.npmjs.org/',
   platformsOnly = false,
   requireProvenance = false,
-  retries = 6,
-  delayMs = 5000,
+  retries = 12,
+  delayMs = 10000,
   localTarballs,
   tag,
 } = {}) {
