@@ -57,11 +57,11 @@ test('the packed package loads through its CJS and ESM entry points', async (t) 
     const esmSmoke = join(installDir, 'smoke.mjs')
     writeFileSync(
       cjsSmoke,
-      `const { extract } = require('@ryanfowler/legible')\nprocess.stdout.write(JSON.stringify(extract(${JSON.stringify(html)}).markdown()))\n`,
+      `const { extract } = require('@ryanfowler/legible')\nextract(${JSON.stringify(html)}).then((page) => process.stdout.write(JSON.stringify(page.markdown())))\n`,
     )
     writeFileSync(
       esmSmoke,
-      `import { extract } from '@ryanfowler/legible'\nprocess.stdout.write(JSON.stringify(extract(${JSON.stringify(html)}).markdown()))\n`,
+      `import { extract } from '@ryanfowler/legible'\nconst page = await extract(${JSON.stringify(html)})\nprocess.stdout.write(JSON.stringify(page.markdown()))\n`,
     )
 
     const cjsResult = execFileSync(process.execPath, [cjsSmoke], { cwd: installDir, encoding: 'utf8' })

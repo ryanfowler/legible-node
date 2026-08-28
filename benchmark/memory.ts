@@ -1,4 +1,4 @@
-import { extract } from '../index.js'
+import { extractSync } from '../index.js'
 import { loadFixtures } from './fixtures.js'
 
 declare global {
@@ -48,7 +48,7 @@ async function run(): Promise<void> {
   for (let cycle = 1; cycle <= cycles; cycle += 1) {
     for (let iteration = 0; iteration < iterations; iteration += 1) {
       const fixture = fixtures[(cycle * iterations + iteration) % fixtures.length]
-      let page: ReturnType<typeof extract> | undefined = extract(fixture.html, {
+      let page: ReturnType<typeof extractSync> | undefined = extractSync(fixture.html, {
         diagnostics: true,
         metadataDiagnostics: true,
         retainStructuredData: true,

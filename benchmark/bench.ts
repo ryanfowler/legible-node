@@ -1,6 +1,6 @@
 import { Bench } from 'tinybench'
 
-import { extract, extractAsync } from '../index.js'
+import { extract, extractSync } from '../index.js'
 import { loadFixtures, type BenchmarkFixture } from './fixtures.js'
 
 type BenchmarkOperation = {
@@ -68,17 +68,17 @@ async function runOperations(fixture: BenchmarkFixture, operations: BenchmarkOpe
 function syncOperations(fixture: BenchmarkFixture): BenchmarkOperation[] {
   const { html } = fixture
   return [
-    { name: 'sync extraction', run: () => consume(extract(html)) },
+    { name: 'sync extraction', run: () => consume(extractSync(html)) },
     {
       name: 'sync extraction + Markdown',
-      run: () => consume(extract(html).markdown()),
+      run: () => consume(extractSync(html).markdown()),
     },
-    { name: 'sync extraction + text', run: () => consume(extract(html).text()) },
-    { name: 'sync extraction + HTML', run: () => consume(extract(html).html()) },
+    { name: 'sync extraction + text', run: () => consume(extractSync(html).text()) },
+    { name: 'sync extraction + HTML', run: () => consume(extractSync(html).html()) },
     {
       name: 'sync extraction + all formats',
       run: () => {
-        const page = extract(html)
+        const page = extractSync(html)
         consume(page.markdown())
         consume(page.text())
         consume(page.html())
@@ -87,28 +87,28 @@ function syncOperations(fixture: BenchmarkFixture): BenchmarkOperation[] {
     {
       name: 'render-only Markdown (warm)',
       run: (() => {
-        const page = extract(html)
+        const page = extractSync(html)
         return () => consume(page.markdown())
       })(),
     },
     {
       name: 'render-only text (warm)',
       run: (() => {
-        const page = extract(html)
+        const page = extractSync(html)
         return () => consume(page.text())
       })(),
     },
     {
       name: 'render-only HTML (warm)',
       run: (() => {
-        const page = extract(html)
+        const page = extractSync(html)
         return () => consume(page.html())
       })(),
     },
     {
       name: 'render-only all formats (warm)',
       run: (() => {
-        const page = extract(html)
+        const page = extractSync(html)
         return () => {
           consume(page.markdown())
           consume(page.text())
@@ -123,7 +123,7 @@ function asyncOperations(fixture: BenchmarkFixture): BenchmarkOperation[] {
   return [
     {
       name: 'async extraction (end-to-end)',
-      run: async () => consume(await extractAsync(fixture.html)),
+      run: async () => consume(await extract(fixture.html)),
     },
   ]
 }
@@ -145,7 +145,7 @@ async function run(): Promise<void> {
         {
           name: `async extraction (${concurrency} concurrent)`,
           run: async () => {
-            const pages = await Promise.all(Array.from({ length: concurrency }, () => extractAsync(longForm.html)))
+            const pages = await Promise.all(Array.from({ length: concurrency }, () => extract(longForm.html)))
             pages.forEach(consume)
           },
         },
@@ -155,7 +155,7 @@ async function run(): Promise<void> {
 
   const diagnosticsFixture = fixtures.find((fixture) => fixture.name === 'json-ld-heavy')
   if (!diagnosticsFixture) throw new Error('json-ld-heavy fixture is missing')
-  const diagnosticPage = extract(diagnosticsFixture.html, {
+  const diagnosticPage = extractSync(diagnosticsFixture.html, {
     diagnostics: true,
     metadataDiagnostics: true,
     retainStructuredData: true,

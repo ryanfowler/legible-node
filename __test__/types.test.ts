@@ -2,8 +2,8 @@ import test from 'ava'
 
 import { ExtractedPage, Extractor } from '../index.js'
 import type {
-  ExtractAsyncOptions,
   ExtractOptions,
+  ExtractSyncOptions,
   MarkdownOptions,
   Metadata,
   PageMetrics,
@@ -30,13 +30,13 @@ const budget: ParseBudget = {
   maxJsonLdDepth: 128,
 }
 const markdownOptions: MarkdownOptions = { links: false, images: true, maxLineWidth: 80 }
-const extractOptions: ExtractOptions = { parseBudget: budget, url: 'https://example.com' }
-const asyncOptions: ExtractAsyncOptions = {
+const extractOptions: ExtractSyncOptions = { parseBudget: budget, url: 'https://example.com' }
+const asyncOptions: ExtractOptions = {
   ...extractOptions,
   signal: new AbortController().signal,
 }
 const extractor = new Extractor()
-const page: ExtractedPage = extractor.extract('<main>content</main>')
+const page: ExtractedPage = extractor.extractSync('<main>content</main>')
 const metadata: Metadata = page.metadata
 const metrics: PageMetrics = page.metrics
 const renderedMarkdown: string = page.markdown(markdownOptions)
@@ -55,7 +55,7 @@ function checkExtractedPageCannotBeConstructed(): void {
 }
 
 // @ts-expect-error Synchronous one-shot options do not accept an AbortSignal.
-const invalidSyncOptions: ExtractOptions = { signal: new AbortController().signal }
+const invalidSyncOptions: ExtractSyncOptions = { signal: new AbortController().signal }
 
 // @ts-expect-error Public option names use camelCase.
 const invalidBudget: ParseBudget = { max_input_bytes: 1 }

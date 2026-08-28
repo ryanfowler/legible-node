@@ -11,16 +11,16 @@ use crate::{
   task::{async_task, prepare_abort_signal},
 };
 
-/// Options that apply to one extraction call on a reusable extractor.
-#[napi(js_name = "ExtractCallOptions", object, object_to_js = false)]
-pub struct ExtractCallOptionsInput {
+/// Options that apply to one synchronous extraction call on a reusable extractor.
+#[napi(js_name = "ExtractSyncCallOptions", object, object_to_js = false)]
+pub struct ExtractSyncCallOptionsInput {
   /// Absolute source/base URL used to resolve relative URLs.
   pub url: Option<String>,
 }
 
-/// Options that apply to one asynchronous extraction call.
-#[napi(js_name = "ExtractAsyncCallOptions", object, object_to_js = false)]
-pub struct ExtractAsyncCallOptionsInput {
+/// Options that apply to one asynchronous extraction call on a reusable extractor.
+#[napi(js_name = "ExtractCallOptions", object, object_to_js = false)]
+pub struct ExtractCallOptionsInput {
   /// Absolute source/base URL used to resolve relative URLs.
   pub url: Option<String>,
   /// Cancels the task if it has not started running yet.
@@ -28,7 +28,29 @@ pub struct ExtractAsyncCallOptionsInput {
   pub signal: Option<Object<'static>>,
 }
 
-/// Options for one-shot extraction, including reusable extractor configuration.
+/// Options for synchronous one-shot extraction.
+#[napi(js_name = "ExtractSyncOptions", object, object_to_js = false)]
+pub struct ExtractSyncOptionsInput {
+  #[napi(ts_type = "ParseBudget")]
+  pub parse_budget: Option<ParseBudgetInput>,
+  pub structured_data: Option<bool>,
+  pub diagnostics: Option<bool>,
+  pub metadata_diagnostics: Option<bool>,
+  pub retain_structured_data: Option<bool>,
+  #[napi(ts_type = "ContentSelector")]
+  pub content_hint: Option<ContentSelectorInput>,
+  #[napi(ts_type = "ContentSelector")]
+  pub content_root: Option<ContentSelectorInput>,
+  pub url: Option<String>,
+}
+
+impl ExtractCallOptionsInput {
+  fn into_parts(self) -> (Option<String>, Option<Object<'static>>) {
+    (self.url, self.signal)
+  }
+}
+
+/// Options for asynchronous one-shot extraction, including reusable extractor configuration.
 #[napi(js_name = "ExtractOptions", object, object_to_js = false)]
 pub struct ExtractOptionsInput {
   #[napi(ts_type = "ParseBudget")]
@@ -42,33 +64,11 @@ pub struct ExtractOptionsInput {
   #[napi(ts_type = "ContentSelector")]
   pub content_root: Option<ContentSelectorInput>,
   pub url: Option<String>,
-}
-
-impl ExtractAsyncCallOptionsInput {
-  fn into_parts(self) -> (Option<String>, Option<Object<'static>>) {
-    (self.url, self.signal)
-  }
-}
-
-/// Options for asynchronous one-shot extraction.
-#[napi(js_name = "ExtractAsyncOptions", object, object_to_js = false)]
-pub struct ExtractAsyncOptionsInput {
-  #[napi(ts_type = "ParseBudget")]
-  pub parse_budget: Option<ParseBudgetInput>,
-  pub structured_data: Option<bool>,
-  pub diagnostics: Option<bool>,
-  pub metadata_diagnostics: Option<bool>,
-  pub retain_structured_data: Option<bool>,
-  #[napi(ts_type = "ContentSelector")]
-  pub content_hint: Option<ContentSelectorInput>,
-  #[napi(ts_type = "ContentSelector")]
-  pub content_root: Option<ContentSelectorInput>,
-  pub url: Option<String>,
   #[napi(ts_type = "AbortSignal | null | undefined")]
   pub signal: Option<Object<'static>>,
 }
 
-impl ExtractOptionsInput {
+impl ExtractSyncOptionsInput {
   fn into_parts(self) -> (ExtractorOptionsInput, Option<String>) {
     (
       ExtractorOptionsInput {
@@ -85,7 +85,7 @@ impl ExtractOptionsInput {
   }
 }
 
-impl ExtractAsyncOptionsInput {
+impl ExtractOptionsInput {
   fn into_parts(
     self,
   ) -> (
@@ -129,28 +129,16 @@ impl Extractor {
     })
   }
 
-  /// Extracts a document using this extractor's immutable configuration.
-  #[napi]
+  /// Extracts a document on napi-rs's libuv worker pool.
+  #[napi(ts_return_type = "Promise<ExtractedPage>")]
+  #[allow(private_interfaces)]
   pub fn extract(
     &self,
     env: Env,
     html: String,
     options: Option<ExtractCallOptionsInput>,
-  ) -> Result<ExtractedPage> {
-    let url = options.and_then(|options| options.url);
-    extract_sync(&self.inner, &html, url.as_deref(), &env)
-  }
-
-  /// Extracts a document on napi-rs's libuv worker pool.
-  #[napi(ts_return_type = "Promise<ExtractedPage>")]
-  #[allow(private_interfaces)]
-  pub fn extract_async(
-    &self,
-    env: Env,
-    html: String,
-    options: Option<ExtractAsyncCallOptionsInput>,
   ) -> Result<AsyncTask<crate::task::ExtractTask>> {
-    let (url, signal) = options.map_or((None, None), ExtractAsyncCallOptionsInput::into_parts);
+    let (url, signal) = options.map_or((None, None), ExtractCallOptionsInput::into_parts);
     let (signal, pre_aborted, abort_cleanup) = prepare_abort_signal(&env, signal)?;
     Ok(async_task(
       self.inner.clone(),
@@ -161,36 +149,27 @@ impl Extractor {
       abort_cleanup,
     ))
   }
-}
 
-/// Extracts one document using a one-shot configuration.
-#[napi]
-pub fn extract(
-  env: Env,
-  html: String,
-  #[napi(ts_arg_type = "ExtractOptions | null | undefined")] options: Option<ExtractOptionsInput>,
-) -> Result<ExtractedPage> {
-  let (extractor_options, url) = options.map_or_else(
-    || (None, None),
-    |options| {
-      let (extractor_options, url) = options.into_parts();
-      (Some(extractor_options), url)
-    },
-  );
-  let extractor = build_extractor(extractor_options)?;
-
-  extract_sync(&extractor, &html, url.as_deref(), &env)
+  /// Extracts a document synchronously on the calling thread.
+  #[napi]
+  pub fn extract_sync(
+    &self,
+    env: Env,
+    html: String,
+    options: Option<ExtractSyncCallOptionsInput>,
+  ) -> Result<ExtractedPage> {
+    let url = options.and_then(|options| options.url);
+    extract_page_sync(&self.inner, &html, url.as_deref(), &env)
+  }
 }
 
 /// Extracts one document on napi-rs's libuv worker pool.
 #[napi(ts_return_type = "Promise<ExtractedPage>")]
 #[allow(private_interfaces)]
-pub fn extract_async(
+pub fn extract(
   env: Env,
   html: String,
-  #[napi(ts_arg_type = "ExtractAsyncOptions | null | undefined")] options: Option<
-    ExtractAsyncOptionsInput,
-  >,
+  #[napi(ts_arg_type = "ExtractOptions | null | undefined")] options: Option<ExtractOptionsInput>,
 ) -> Result<AsyncTask<crate::task::ExtractTask>> {
   let (extractor_options, url, signal) = options.map_or_else(
     || (None, None, None),
@@ -212,7 +191,28 @@ pub fn extract_async(
   ))
 }
 
-fn extract_sync(
+/// Extracts one document synchronously on the calling thread.
+#[napi]
+pub fn extract_sync(
+  env: Env,
+  html: String,
+  #[napi(ts_arg_type = "ExtractSyncOptions | null | undefined")] options: Option<
+    ExtractSyncOptionsInput,
+  >,
+) -> Result<ExtractedPage> {
+  let (extractor_options, url) = options.map_or_else(
+    || (None, None),
+    |options| {
+      let (extractor_options, url) = options.into_parts();
+      (Some(extractor_options), url)
+    },
+  );
+  let extractor = build_extractor(extractor_options)?;
+
+  extract_page_sync(&extractor, &html, url.as_deref(), &env)
+}
+
+fn extract_page_sync(
   extractor: &legible_upstream::Extractor,
   html: &str,
   url: Option<&str>,
@@ -254,7 +254,7 @@ mod tests {
 
   #[test]
   fn one_shot_and_reusable_paths_share_configuration_and_results() {
-    let (options, url) = ExtractOptionsInput {
+    let (options, url) = ExtractSyncOptionsInput {
       parse_budget: None,
       structured_data: Some(false),
       diagnostics: Some(true),

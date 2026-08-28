@@ -1,7 +1,7 @@
 import test from 'ava'
 import { pbkdf2 } from 'node:crypto'
 
-import { ExtractedPage, Extractor, extract, extractAsync } from '../index.js'
+import { ExtractedPage, Extractor, extract, extractSync } from '../index.js'
 import type { LegibleError } from '../index.js'
 
 const HTML = `
@@ -25,9 +25,9 @@ test('top-level and reusable async extraction have sync parity', async (t) => {
     structuredData: false,
     url: 'https://example.com/story',
   }
-  const sync = extract(HTML, options)
-  const oneShot = await extractAsync(HTML, options)
-  const reusable = await new Extractor(options).extractAsync(HTML, { url: options.url })
+  const sync = extractSync(HTML, options)
+  const oneShot = await extract(HTML, options)
+  const reusable = await new Extractor(options).extract(HTML, { url: options.url })
 
   t.true(oneShot instanceof ExtractedPage)
   t.deepEqual(oneShot.metadata, sync.metadata)
@@ -41,7 +41,7 @@ test('top-level and reusable async extraction have sync parity', async (t) => {
 
 test('async domain errors preserve structured properties', async (t) => {
   const error = (await t.throwsAsync(
-    extractAsync(HTML, {
+    extract(HTML, {
       parseBudget: { maxInputBytes: 1 },
     }),
   )) as LegibleError
@@ -54,7 +54,7 @@ test('async domain errors preserve structured properties', async (t) => {
 
 test('async extraction yields to the event loop while native work runs', async (t) => {
   let settled = false
-  const extraction = extractAsync(LARGE_HTML).finally(() => {
+  const extraction = extract(LARGE_HTML).finally(() => {
     settled = true
   })
   const eventLoopTurn = new Promise<void>((resolve) => {
@@ -69,7 +69,7 @@ test('async extraction yields to the event loop while native work runs', async (
 test('concurrent async extractions are isolated', async (t) => {
   const pages = await Promise.all(
     Array.from({ length: 12 }, (_, index) =>
-      extractAsync(
+      extract(
         HTML.replace('<title>Async extraction', `<title>Async extraction ${index}`).replace(
           'relative article link',
           `relative article link ${index}`,
@@ -93,7 +93,7 @@ test('pre-aborted signals reject and caller handlers remain intact', async (t) =
   }
   controller.abort()
 
-  const error = await t.throwsAsync(extractAsync(HTML, { signal: controller.signal }))
+  const error = await t.throwsAsync(extract(HTML, { signal: controller.signal }))
   t.is((error as Error).name, 'AbortError')
   t.is(handlerCalls, 1)
 })
@@ -120,8 +120,8 @@ test('AbortSignal cancels queued extraction work', async (t) => {
     handlerCalls += 1
   }
   const pending = [
-    extractAsync(LARGE_HTML, { signal: controller.signal }),
-    extractAsync(LARGE_HTML, { signal: controller.signal }),
+    extract(LARGE_HTML, { signal: controller.signal }),
+    extract(LARGE_HTML, { signal: controller.signal }),
   ]
   controller.abort()
 
