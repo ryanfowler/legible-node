@@ -295,7 +295,7 @@ dependencies = [
 [[package]]
 name = "legible"
 version = "0.5.1"
-source = "git+https://github.com/ryanfowler/legible?rev=899356a2540863898b2c9fe639241da606889256#899356a2540863898b2c9fe639241da606889256"
+source = "git+https://github.com/ryanfowler/legible?rev=363046a74661097f9fe252008eb62ea5e7370df5#363046a74661097f9fe252008eb62ea5e7370df5"
 dependencies = [
  "caseless",
  "html5ever",
