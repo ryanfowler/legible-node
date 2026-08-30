@@ -37,6 +37,48 @@ test('sync URL options resolve relative links', (t) => {
   t.true(page.markdown().includes('[relative article link](https://example.com/article)'))
 })
 
+test('sync extraction can include all requested outputs', (t) => {
+  const markdownOptions = { links: false, images: false, maxLineWidth: 40 }
+  const page = extractSync(HTML, {
+    url: 'https://example.com/story',
+    diagnostics: true,
+    metadataDiagnostics: true,
+    retainStructuredData: true,
+    output: { markdown: markdownOptions, html: true, text: true },
+  })
+  const reusable = new Extractor().extractSync(HTML, {
+    output: { markdown: true },
+  })
+
+  t.is(page.output?.markdown, page.markdown(markdownOptions))
+  t.is(page.output?.html, page.html())
+  t.is(page.output?.text, page.text())
+  t.is(reusable.output?.markdown, reusable.markdown())
+  t.is(reusable.output?.html, null)
+  t.is(reusable.output?.text, null)
+  t.is(extractSync(HTML).output, null)
+
+  const json = JSON.parse(JSON.stringify(page)) as ReturnType<typeof page.toJSON>
+  t.deepEqual(json, {
+    metadata: page.metadata,
+    metrics: page.metrics,
+    diagnostics: page.diagnostics,
+    metadataDiagnostics: page.metadataDiagnostics,
+    structuredData: page.structuredData,
+    output: page.output,
+  })
+})
+
+test('output Markdown options use the same validation as page rendering', (t) => {
+  const error = t.throws(() =>
+    extractSync(HTML, {
+      output: { markdown: { maxLineWidth: -1 } },
+    }),
+  )
+
+  t.true(error.message.includes('maxLineWidth'))
+})
+
 test('invalid URLs map to structured Legible errors on both sync paths', (t) => {
   const cases = [
     () => extractSync(HTML, { url: 'relative' }),

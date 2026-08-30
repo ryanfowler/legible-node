@@ -32,8 +32,9 @@ export interface LegibleError extends Error {
 /**
  * A retained extracted page with lazy output rendering.
  *
- * The upstream page owns the semantic representation. This wrapper does not
- * cache rendered strings or converted result objects.
+ * The upstream page owns the semantic representation. This wrapper retains
+ * only the rendered strings explicitly requested during extraction. It does
+ * not cache later method results or converted result objects.
  */
 export declare class ExtractedPage {
   private constructor()
@@ -47,6 +48,10 @@ export declare class ExtractedPage {
   get metadataDiagnostics(): MetadataDiagnostics | null
   /** Returns retained structured data, or null when retention was disabled. */
   get structuredData(): unknown[] | null
+  /** Returns the formats requested during extraction, or null when none were requested. */
+  get output(): ExtractedOutput | null
+  /** Returns the page data used by JSON.stringify. */
+  toJSON(): ExtractedPageJson
   /** Renders canonical Markdown using the upstream MarkdownBuilder. */
   markdown(options?: MarkdownOptions | undefined | null): string
   /** Renders normalized plain text lazily. */
@@ -137,8 +142,27 @@ export declare function extract(html: string, options?: ExtractOptions | null | 
 export interface ExtractCallOptions {
   /** Absolute source/base URL used to resolve relative URLs. */
   url?: string
+  /** Renders selected formats during extraction. */
+  output?: ExtractOutputOptions
   /** Cancels the task if it has not started running yet. */
   signal?: AbortSignal | null | undefined
+}
+
+/** Rendered formats requested during extraction. */
+export interface ExtractedOutput {
+  markdown: string | null
+  html: string | null
+  text: string | null
+}
+
+/** The JSON-serializable view of an extracted page. */
+export interface ExtractedPageJson {
+  metadata: Metadata
+  metrics: PageMetrics
+  diagnostics: ExtractionDiagnostics | null
+  metadataDiagnostics: MetadataDiagnostics | null
+  structuredData: unknown[] | null
+  output: ExtractedOutput | null
 }
 
 /** One attempt made by Legible while selecting and cleaning content. */
@@ -183,6 +207,8 @@ export interface ExtractOptions {
   contentHint?: ContentSelector
   contentRoot?: ContentSelector
   url?: string
+  /** Renders selected formats during extraction. */
+  output?: ExtractOutputOptions
   signal?: AbortSignal | null | undefined
 }
 
@@ -197,6 +223,16 @@ export interface ExtractorOptions {
   contentRoot?: ContentSelector
 }
 
+/** Output formats to render during extraction. */
+export interface ExtractOutputOptions {
+  /** Renders Markdown with defaults or the supplied Markdown options. */
+  markdown?: boolean | MarkdownOptions
+  /** Renders canonical semantic HTML. */
+  html?: boolean
+  /** Renders normalized plain text. */
+  text?: boolean
+}
+
 /** Extracts one document synchronously on the calling thread. */
 export declare function extractSync(html: string, options?: ExtractSyncOptions | null | undefined): ExtractedPage
 
@@ -204,6 +240,8 @@ export declare function extractSync(html: string, options?: ExtractSyncOptions |
 export interface ExtractSyncCallOptions {
   /** Absolute source/base URL used to resolve relative URLs. */
   url?: string
+  /** Renders selected formats during extraction. */
+  output?: ExtractOutputOptions
 }
 
 /** Options for synchronous one-shot extraction. */
@@ -216,6 +254,8 @@ export interface ExtractSyncOptions {
   contentHint?: ContentSelector
   contentRoot?: ContentSelector
   url?: string
+  /** Renders selected formats during extraction. */
+  output?: ExtractOutputOptions
 }
 
 /** Options for rendering an extracted page as Markdown. */

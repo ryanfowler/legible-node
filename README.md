@@ -59,6 +59,25 @@ console.log(page.metadata.title)
 console.log(page.markdown())
 ```
 
+Request one or more rendered formats as part of extraction. Markdown accepts
+the same rendering options as `page.markdown(options)`:
+
+```ts
+const page = await extract(html, {
+  url: 'https://example.com/article',
+  output: {
+    markdown: { links: false, images: false, maxLineWidth: 100 },
+    html: true,
+    text: true,
+  },
+})
+
+console.log(page.output)
+// { markdown: string, html: string, text: string }
+
+console.log(JSON.stringify(page)) // Includes the requested output strings.
+```
+
 The returned `ExtractedPage` keeps the native semantic representation. Its
 `markdown()`, `text()`, and `html()` methods render only when called. The
 `metadata`, `metrics`, diagnostics, and structured-data getters return fresh
@@ -154,6 +173,14 @@ const page = extractSync(html, {
   url: 'https://example.com/article',
 })
 ```
+
+One-shot and reusable calls accept an `output` object. Set `html` or `text` to
+`true`. Set `markdown` to `true` for the defaults or supply a `MarkdownOptions`
+object. The returned page includes the requested strings in `page.output`.
+Unrequested fields are `null`. `page.output` is `null` when the call omits the
+`output` option. Async calls extract and render on the libuv worker pool.
+`JSON.stringify(page)` serializes the page metadata, metrics, diagnostics,
+structured data, and requested output strings.
 
 ## Options
 
@@ -292,6 +319,8 @@ values are `null`.
 - `diagnostics`: extraction decision details or `null`.
 - `metadataDiagnostics`: metadata provenance details or `null`.
 - `structuredData`: retained JSON-LD items or `null`.
+- `output`: requested Markdown, HTML, and text strings, or `null`.
+- `toJSON()`: the structured value used by `JSON.stringify(page)`.
 - `markdown(options?)`: canonical Markdown.
 - `text()`: normalized plain text.
 - `html()`: canonical semantic HTML.

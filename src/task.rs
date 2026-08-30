@@ -8,7 +8,10 @@ use napi::{
 
 use std::sync::{Arc, Mutex};
 
-use crate::{error::BindingError, page::ExtractedPage};
+use crate::{
+  error::BindingError,
+  page::{ExtractedOutput, ExtractedPage, OutputRequest},
+};
 
 /// The owned work item sent to napi-rs's libuv worker pool.
 ///
@@ -18,6 +21,7 @@ pub(crate) struct ExtractTask {
   pub(crate) extractor: legible_upstream::Extractor,
   pub(crate) html: String,
   pub(crate) url: Option<String>,
+  pub(crate) output: Option<OutputRequest>,
   pub(crate) pre_aborted: bool,
   pub(crate) abort_cleanup: Option<AbortSignalCleanup>,
 }
@@ -55,7 +59,8 @@ impl AbortSignalCleanup {
 }
 
 impl Task for ExtractTask {
-  type Output = std::result::Result<legible_upstream::ExtractedPage, BindingError>;
+  type Output =
+    std::result::Result<(legible_upstream::ExtractedPage, Option<ExtractedOutput>), BindingError>;
   type JsValue = ExtractedPage;
 
   fn compute(&mut self) -> Result<Self::Output> {
@@ -69,13 +74,17 @@ impl Task for ExtractTask {
       self
         .extractor
         .extract(&self.html, self.url.as_deref())
+        .map(|page| {
+          let output = self.output.take().map(|output| output.render(&page));
+          (page, output)
+        })
         .map_err(BindingError::from),
     )
   }
 
   fn resolve(&mut self, env: Env, output: Self::Output) -> Result<Self::JsValue> {
     match output {
-      Ok(page) => Ok(ExtractedPage::from_upstream(page)),
+      Ok((page, output)) => Ok(ExtractedPage::from_upstream_with_output(page, output)),
       Err(error) => Err(error.into_napi_error(&env)?),
     }
   }
@@ -206,6 +215,7 @@ pub(crate) fn async_task(
   extractor: legible_upstream::Extractor,
   html: String,
   url: Option<String>,
+  output: Option<OutputRequest>,
   signal: Option<AbortSignal>,
   pre_aborted: bool,
   abort_cleanup: Option<AbortSignalCleanup>,
@@ -215,6 +225,7 @@ pub(crate) fn async_task(
       extractor,
       html,
       url,
+      output,
       pre_aborted,
       abort_cleanup,
     },
@@ -240,6 +251,7 @@ mod tests {
       extractor: legible_upstream::Extractor::builder().build(),
       html: "<html><body><p>content</p></body></html>".to_owned(),
       url: Some("relative".to_owned()),
+      output: None,
       pre_aborted: false,
       abort_cleanup: None,
     };
@@ -259,6 +271,7 @@ mod tests {
       extractor: legible_upstream::Extractor::builder().build(),
       html: String::new(),
       url: None,
+      output: None,
       pre_aborted: true,
       abort_cleanup: None,
     };
@@ -268,5 +281,35 @@ mod tests {
       Ok(_) => panic!("a pre-aborted task must not extract"),
       Err(error) => assert_eq!(error.status, Status::Cancelled),
     }
+  }
+
+  #[test]
+  fn compute_renders_requested_outputs_on_the_worker_task() {
+    let html = "<main><h1>Rendered output</h1><p>This content is long enough to extract and render in the background worker task.</p></main>";
+    let upstream = legible_upstream::extract(html, None).unwrap();
+    let expected_text = upstream.text();
+    let expected_html = upstream.html();
+    let mut task = ExtractTask {
+      extractor: legible_upstream::Extractor::builder().build(),
+      html: html.to_owned(),
+      url: None,
+      output: Some(
+        crate::page::ExtractOutputOptionsInput {
+          markdown: None,
+          html: Some(true),
+          text: Some(true),
+        }
+        .into_request()
+        .unwrap(),
+      ),
+      pre_aborted: false,
+      abort_cleanup: None,
+    };
+
+    let (_, output) = task.compute().unwrap().unwrap();
+    let output = output.unwrap();
+    assert_eq!(output.text.as_deref(), Some(expected_text.as_str()));
+    assert_eq!(output.html.as_deref(), Some(expected_html.as_str()));
+    assert!(output.markdown.is_none());
   }
 }
