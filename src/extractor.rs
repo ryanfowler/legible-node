@@ -7,7 +7,7 @@ use napi_derive::napi;
 use crate::{
   error::BindingError,
   options::{build_extractor, ContentSelectorInput, ExtractorOptionsInput, ParseBudgetInput},
-  page::ExtractedPage,
+  page::{ExtractOutputOptionsInput, ExtractedPage, OutputRequest},
   task::{async_task, prepare_abort_signal},
 };
 
@@ -16,6 +16,9 @@ use crate::{
 pub struct ExtractSyncCallOptionsInput {
   /// Absolute source/base URL used to resolve relative URLs.
   pub url: Option<String>,
+  /// Renders selected formats during extraction.
+  #[napi(ts_type = "ExtractOutputOptions")]
+  pub output: Option<ExtractOutputOptionsInput>,
 }
 
 /// Options that apply to one asynchronous extraction call on a reusable extractor.
@@ -23,6 +26,9 @@ pub struct ExtractSyncCallOptionsInput {
 pub struct ExtractCallOptionsInput {
   /// Absolute source/base URL used to resolve relative URLs.
   pub url: Option<String>,
+  /// Renders selected formats during extraction.
+  #[napi(ts_type = "ExtractOutputOptions")]
+  pub output: Option<ExtractOutputOptionsInput>,
   /// Cancels the task if it has not started running yet.
   #[napi(ts_type = "AbortSignal | null | undefined")]
   pub signal: Option<Object<'static>>,
@@ -42,11 +48,20 @@ pub struct ExtractSyncOptionsInput {
   #[napi(ts_type = "ContentSelector")]
   pub content_root: Option<ContentSelectorInput>,
   pub url: Option<String>,
+  /// Renders selected formats during extraction.
+  #[napi(ts_type = "ExtractOutputOptions")]
+  pub output: Option<ExtractOutputOptionsInput>,
 }
 
 impl ExtractCallOptionsInput {
-  fn into_parts(self) -> (Option<String>, Option<Object<'static>>) {
-    (self.url, self.signal)
+  fn into_parts(
+    self,
+  ) -> (
+    Option<String>,
+    Option<ExtractOutputOptionsInput>,
+    Option<Object<'static>>,
+  ) {
+    (self.url, self.output, self.signal)
   }
 }
 
@@ -64,12 +79,21 @@ pub struct ExtractOptionsInput {
   #[napi(ts_type = "ContentSelector")]
   pub content_root: Option<ContentSelectorInput>,
   pub url: Option<String>,
+  /// Renders selected formats during extraction.
+  #[napi(ts_type = "ExtractOutputOptions")]
+  pub output: Option<ExtractOutputOptionsInput>,
   #[napi(ts_type = "AbortSignal | null | undefined")]
   pub signal: Option<Object<'static>>,
 }
 
 impl ExtractSyncOptionsInput {
-  fn into_parts(self) -> (ExtractorOptionsInput, Option<String>) {
+  fn into_parts(
+    self,
+  ) -> (
+    ExtractorOptionsInput,
+    Option<String>,
+    Option<ExtractOutputOptionsInput>,
+  ) {
     (
       ExtractorOptionsInput {
         parse_budget: self.parse_budget,
@@ -81,6 +105,7 @@ impl ExtractSyncOptionsInput {
         content_root: self.content_root,
       },
       self.url,
+      self.output,
     )
   }
 }
@@ -91,6 +116,7 @@ impl ExtractOptionsInput {
   ) -> (
     ExtractorOptionsInput,
     Option<String>,
+    Option<ExtractOutputOptionsInput>,
     Option<Object<'static>>,
   ) {
     (
@@ -104,6 +130,7 @@ impl ExtractOptionsInput {
         content_root: self.content_root,
       },
       self.url,
+      self.output,
       self.signal,
     )
   }
@@ -138,12 +165,17 @@ impl Extractor {
     html: String,
     options: Option<ExtractCallOptionsInput>,
   ) -> Result<AsyncTask<crate::task::ExtractTask>> {
-    let (url, signal) = options.map_or((None, None), ExtractCallOptionsInput::into_parts);
+    let (url, output, signal) =
+      options.map_or((None, None, None), ExtractCallOptionsInput::into_parts);
+    let output = output
+      .map(ExtractOutputOptionsInput::into_request)
+      .transpose()?;
     let (signal, pre_aborted, abort_cleanup) = prepare_abort_signal(&env, signal)?;
     Ok(async_task(
       self.inner.clone(),
       html,
       url,
+      output,
       signal,
       pre_aborted,
       abort_cleanup,
@@ -158,8 +190,11 @@ impl Extractor {
     html: String,
     options: Option<ExtractSyncCallOptionsInput>,
   ) -> Result<ExtractedPage> {
-    let url = options.and_then(|options| options.url);
-    extract_page_sync(&self.inner, &html, url.as_deref(), &env)
+    let (url, output) = options.map_or((None, None), |options| (options.url, options.output));
+    let output = output
+      .map(ExtractOutputOptionsInput::into_request)
+      .transpose()?;
+    extract_page_sync(&self.inner, &html, url.as_deref(), output, &env)
   }
 }
 
@@ -171,20 +206,24 @@ pub fn extract(
   html: String,
   #[napi(ts_arg_type = "ExtractOptions | null | undefined")] options: Option<ExtractOptionsInput>,
 ) -> Result<AsyncTask<crate::task::ExtractTask>> {
-  let (extractor_options, url, signal) = options.map_or_else(
-    || (None, None, None),
+  let (extractor_options, url, output, signal) = options.map_or_else(
+    || (None, None, None, None),
     |options| {
-      let (extractor_options, url, signal) = options.into_parts();
-      (Some(extractor_options), url, signal)
+      let (extractor_options, url, output, signal) = options.into_parts();
+      (Some(extractor_options), url, output, signal)
     },
   );
   let extractor = build_extractor(extractor_options)?;
+  let output = output
+    .map(ExtractOutputOptionsInput::into_request)
+    .transpose()?;
   let (signal, pre_aborted, abort_cleanup) = prepare_abort_signal(&env, signal)?;
 
   Ok(async_task(
     extractor,
     html,
     url,
+    output,
     signal,
     pre_aborted,
     abort_cleanup,
@@ -200,26 +239,31 @@ pub fn extract_sync(
     ExtractSyncOptionsInput,
   >,
 ) -> Result<ExtractedPage> {
-  let (extractor_options, url) = options.map_or_else(
-    || (None, None),
+  let (extractor_options, url, output) = options.map_or_else(
+    || (None, None, None),
     |options| {
-      let (extractor_options, url) = options.into_parts();
-      (Some(extractor_options), url)
+      let (extractor_options, url, output) = options.into_parts();
+      (Some(extractor_options), url, output)
     },
   );
   let extractor = build_extractor(extractor_options)?;
+  let output = output
+    .map(ExtractOutputOptionsInput::into_request)
+    .transpose()?;
 
-  extract_page_sync(&extractor, &html, url.as_deref(), &env)
+  extract_page_sync(&extractor, &html, url.as_deref(), output, &env)
 }
 
 fn extract_page_sync(
   extractor: &legible_upstream::Extractor,
   html: &str,
   url: Option<&str>,
+  output: Option<OutputRequest>,
   env: &Env,
 ) -> Result<ExtractedPage> {
   let page = BindingError::map_result(extractor.extract(html, url), env)?;
-  Ok(ExtractedPage::from_upstream(page))
+  let output = output.map(|output| output.render(&page));
+  Ok(ExtractedPage::from_upstream_with_output(page, output))
 }
 
 #[cfg(test)]
@@ -254,7 +298,7 @@ mod tests {
 
   #[test]
   fn one_shot_and_reusable_paths_share_configuration_and_results() {
-    let (options, url) = ExtractSyncOptionsInput {
+    let (options, url, output) = ExtractSyncOptionsInput {
       parse_budget: None,
       structured_data: Some(false),
       diagnostics: Some(true),
@@ -263,8 +307,10 @@ mod tests {
       content_hint: None,
       content_root: None,
       url: Some("https://example.com/story".to_owned()),
+      output: None,
     }
     .into_parts();
+    assert!(output.is_none());
     let one_shot = build_extractor(Some(options))
       .unwrap()
       .extract(HTML, url.as_deref())

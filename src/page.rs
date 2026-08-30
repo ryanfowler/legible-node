@@ -1,4 +1,4 @@
-use napi::{Env, Result};
+use napi::{bindgen_prelude::Either, Env, Result};
 use napi_derive::napi;
 
 use crate::{
@@ -19,19 +19,116 @@ pub struct MarkdownOptionsInput {
   pub max_line_width: Option<f64>,
 }
 
+#[derive(Clone, Copy, Default)]
+pub(crate) struct MarkdownRenderOptions {
+  links: Option<bool>,
+  images: Option<bool>,
+  max_line_width: Option<usize>,
+}
+
+impl MarkdownOptionsInput {
+  pub(crate) fn into_render_options(self) -> Result<MarkdownRenderOptions> {
+    Ok(MarkdownRenderOptions {
+      links: self.links,
+      images: self.images,
+      max_line_width: self
+        .max_line_width
+        .map(|width| js_safe_usize("maxLineWidth", width))
+        .transpose()?,
+    })
+  }
+}
+
+/// Output formats to render during extraction.
+#[napi(js_name = "ExtractOutputOptions", object, object_to_js = false)]
+pub struct ExtractOutputOptionsInput {
+  /// Renders Markdown with defaults or the supplied Markdown options.
+  #[napi(ts_type = "boolean | MarkdownOptions")]
+  pub markdown: Option<Either<bool, MarkdownOptionsInput>>,
+  /// Renders canonical semantic HTML.
+  pub html: Option<bool>,
+  /// Renders normalized plain text.
+  pub text: Option<bool>,
+}
+
+pub(crate) struct OutputRequest {
+  markdown: Option<MarkdownRenderOptions>,
+  html: bool,
+  text: bool,
+}
+
+impl ExtractOutputOptionsInput {
+  pub(crate) fn into_request(self) -> Result<OutputRequest> {
+    let markdown = match self.markdown {
+      Some(Either::A(true)) => Some(MarkdownRenderOptions::default()),
+      Some(Either::A(false)) | None => None,
+      Some(Either::B(options)) => Some(options.into_render_options()?),
+    };
+
+    Ok(OutputRequest {
+      markdown,
+      html: self.html.unwrap_or(false),
+      text: self.text.unwrap_or(false),
+    })
+  }
+}
+
+/// Rendered formats requested during extraction.
+#[napi(object, object_from_js = false, use_nullable = true)]
+#[derive(Clone)]
+pub struct ExtractedOutput {
+  pub markdown: Option<String>,
+  pub html: Option<String>,
+  pub text: Option<String>,
+}
+
+/// The JSON-serializable view of an extracted page.
+#[napi(object, object_from_js = false, use_nullable = true)]
+pub struct ExtractedPageJson {
+  pub metadata: Metadata,
+  pub metrics: PageMetrics,
+  pub diagnostics: Option<ExtractionDiagnostics>,
+  pub metadata_diagnostics: Option<MetadataDiagnostics>,
+  #[napi(ts_type = "unknown[]")]
+  pub structured_data: Option<Vec<serde_json::Value>>,
+  pub output: Option<ExtractedOutput>,
+}
+
+impl OutputRequest {
+  pub(crate) fn render(self, page: &legible_upstream::ExtractedPage) -> ExtractedOutput {
+    ExtractedOutput {
+      markdown: self.markdown.map(|options| render_markdown(page, options)),
+      html: self.html.then(|| page.html()),
+      text: self.text.then(|| page.text()),
+    }
+  }
+}
+
 /// A retained extracted page with lazy output rendering.
 ///
-/// The upstream page owns the semantic representation. This wrapper does not
-/// cache rendered strings or converted result objects.
+/// The upstream page owns the semantic representation. This wrapper retains
+/// only the rendered strings explicitly requested during extraction. It does
+/// not cache later method results or converted result objects.
 #[napi]
 pub struct ExtractedPage {
   inner: legible_upstream::ExtractedPage,
+  output: Option<ExtractedOutput>,
 }
 
 impl ExtractedPage {
   #[allow(dead_code)]
   pub(crate) fn from_upstream(inner: legible_upstream::ExtractedPage) -> Self {
-    Self { inner }
+    Self {
+      inner,
+      output: None,
+    }
+  }
+
+  pub(crate) fn from_upstream_with_output(
+    inner: legible_upstream::ExtractedPage,
+    output: Option<ExtractedOutput>,
+  ) -> Self {
+    Self { inner, output }
   }
 }
 
@@ -79,24 +176,33 @@ impl ExtractedPage {
     self.inner.structured_data().map(ToOwned::to_owned)
   }
 
+  /// Returns the formats requested during extraction, or null when none were requested.
+  #[napi(getter)]
+  pub fn output(&self) -> Option<ExtractedOutput> {
+    self.output.clone()
+  }
+
+  /// Returns the page data used by JSON.stringify.
+  #[napi(js_name = "toJSON")]
+  pub fn to_json(&self, env: Env) -> Result<ExtractedPageJson> {
+    Ok(ExtractedPageJson {
+      metadata: self.metadata(),
+      metrics: self.metrics()?,
+      diagnostics: self.diagnostics(env)?,
+      metadata_diagnostics: self.metadata_diagnostics(env)?,
+      structured_data: self.structured_data(),
+      output: self.output(),
+    })
+  }
+
   /// Renders canonical Markdown using the upstream MarkdownBuilder.
   #[napi]
   pub fn markdown(&self, options: Option<MarkdownOptionsInput>) -> Result<String> {
-    let mut builder = self.inner.markdown_builder();
-
-    if let Some(options) = options {
-      if let Some(links) = options.links {
-        builder = builder.links(links);
-      }
-      if let Some(images) = options.images {
-        builder = builder.images(images);
-      }
-      if let Some(max_line_width) = options.max_line_width {
-        builder = builder.max_line_width(js_safe_usize("maxLineWidth", max_line_width)?);
-      }
-    }
-
-    Ok(builder.render())
+    let options = options
+      .map(MarkdownOptionsInput::into_render_options)
+      .transpose()?
+      .unwrap_or_default();
+    Ok(render_markdown(&self.inner, options))
   }
 
   /// Renders normalized plain text lazily.
@@ -110,6 +216,25 @@ impl ExtractedPage {
   pub fn html(&self) -> String {
     self.inner.html()
   }
+}
+
+fn render_markdown(
+  page: &legible_upstream::ExtractedPage,
+  options: MarkdownRenderOptions,
+) -> String {
+  let mut builder = page.markdown_builder();
+
+  if let Some(links) = options.links {
+    builder = builder.links(links);
+  }
+  if let Some(images) = options.images {
+    builder = builder.images(images);
+  }
+  if let Some(max_line_width) = options.max_line_width {
+    builder = builder.max_line_width(max_line_width);
+  }
+
+  builder.render()
 }
 
 fn convert_optional<T>(

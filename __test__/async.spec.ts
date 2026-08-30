@@ -39,6 +39,22 @@ test('top-level and reusable async extraction have sync parity', async (t) => {
   t.is(reusable.markdown(), sync.markdown())
 })
 
+test('async extraction can include all requested outputs', async (t) => {
+  const markdownOptions = { links: false, images: false, maxLineWidth: 40 }
+  const page = await extract(HTML, {
+    url: 'https://example.com/story',
+    output: { markdown: markdownOptions, html: true, text: true },
+  })
+  const reusable = await new Extractor().extract(HTML, {
+    output: { text: true },
+  })
+
+  t.is(page.output?.markdown, page.markdown(markdownOptions))
+  t.is(page.output?.html, page.html())
+  t.is(page.output?.text, page.text())
+  t.is(reusable.output?.text, reusable.text())
+})
+
 test('async domain errors preserve structured properties', async (t) => {
   const error = (await t.throwsAsync(
     extract(HTML, {
