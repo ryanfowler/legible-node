@@ -29,7 +29,7 @@ Supported native targets are:
 | Windows x64 (MSVC)  | `x86_64-pc-windows-msvc`     |
 
 The current binding uses Legible revision
-[`363046a74661097f9fe252008eb62ea5e7370df5`](https://github.com/ryanfowler/legible/tree/363046a74661097f9fe252008eb62ea5e7370df5).
+[`f8a195e0a03c6c300ad02b382317b6c69506370f`](https://github.com/ryanfowler/legible/tree/f8a195e0a03c6c300ad02b382317b6c69506370f).
 The revision is pinned in `Cargo.toml` and `Cargo.lock`.
 
 ## Installation

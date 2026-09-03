@@ -12,7 +12,7 @@ name = "direct-rust-bench"
 path = "benchmark/direct_rust.rs"
 
 [dependencies]
-legible_upstream = { package = "legible", git = "https://github.com/ryanfowler/legible", rev = "363046a74661097f9fe252008eb62ea5e7370df5" }
+legible_upstream = { package = "legible", git = "https://github.com/ryanfowler/legible", rev = "f8a195e0a03c6c300ad02b382317b6c69506370f" }
 napi-derive = "3.0.0"
 serde_json = "1.0"
 
